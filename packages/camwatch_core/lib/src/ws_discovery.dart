@@ -40,30 +40,41 @@ final _xaddrs = RegExp(r'<(?:\w+:)?XAddrs>([^<]*)</(?:\w+:)?XAddrs>');
 List<String> parseProbeMatch(String reply) => [
   for (final match in _xaddrs.allMatches(reply))
     for (final url in match.group(1)!.trim().split(RegExp(r'\s+')))
-      if (url.startsWith('http://') && isLocalIpv4(Uri.parse(url).host)) url,
+      if (url.startsWith('http://') && isLocalIpv4(Uri.tryParse(url)?.host ?? '')) url,
 ];
 
 /// Sends one Probe from [localAddress] to [target]:[port] and, for [wait],
 /// collects every local camera's device service address keyed by the
-/// address it answered from.
+/// address it answered from. Only an address on that same host counts: a
+/// reply cannot point the app at another device. [target] is the
+/// WS-Discovery group unless a test passes a local address.
 Future<Map<String, String>> discoverOnvif(
   String localAddress, {
   InternetAddress? target,
   int port = wsDiscoveryPort,
   Duration wait = const Duration(seconds: 2),
 }) async {
+  if (target != null && !isLocalIpv4(target.address)) {
+    throw ArgumentError.value(target, 'target', 'not on the local network');
+  }
   final socket = await RawDatagramSocket.bind(localAddress, 0);
   final found = <String, String>{};
   socket.listen((_) {
     final datagram = socket.receive();
     if (datagram == null || datagram.data.length > maxProbeMatchBytes) return;
-    if (!isLocalIpv4(datagram.address.address)) return;
-    final addresses = parseProbeMatch(utf8.decode(datagram.data, allowMalformed: true));
-    if (addresses.isNotEmpty) found[datagram.address.address] = addresses.first;
+    final sender = datagram.address.address;
+    if (!isLocalIpv4(sender)) return;
+    for (final url in parseProbeMatch(utf8.decode(datagram.data, allowMalformed: true))) {
+      if (Uri.parse(url).host == sender) found.putIfAbsent(sender, () => url);
+    }
   });
-  socket.send(utf8.encode(probeMessage()), target ?? wsDiscoveryGroup, port);
-  await Future<void>.delayed(wait);
-  socket.close();
+  // shortcut: no onError, a multicast send gets no ICMP error event; add one if a unicast target ever ships.
+  try {
+    socket.send(utf8.encode(probeMessage()), target ?? wsDiscoveryGroup, port);
+    await Future<void>.delayed(wait);
+  } finally {
+    socket.close();
+  }
   return found;
 }
 

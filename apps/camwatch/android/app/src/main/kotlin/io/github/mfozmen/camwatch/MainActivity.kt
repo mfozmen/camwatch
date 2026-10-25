@@ -16,8 +16,9 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "acquire" -> {
                         if (lock == null) {
-                            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-                            lock = wifi.createMulticastLock("camwatch").also { it.setReferenceCounted(false) }
+                            // Null on Ethernet-only boxes: then there is nothing to hold.
+                            val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                            lock = wifi?.createMulticastLock("camwatch")?.also { it.setReferenceCounted(false) }
                         }
                         lock?.acquire()
                         result.success(null)

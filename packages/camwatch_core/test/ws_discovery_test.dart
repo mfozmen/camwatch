@@ -39,6 +39,7 @@ void main() {
       expect(parseProbeMatch('<e:Envelope/>'), isEmpty);
       expect(parseProbeMatch('not xml'), isEmpty);
       expect(parseProbeMatch(probeMatch('ftp://192.168.1.30/x')), isEmpty);
+      expect(parseProbeMatch(probeMatch('http://[ http://192.168.1.1:abc/')), isEmpty);
     });
   });
 
@@ -57,16 +58,28 @@ void main() {
       expect(found, {'127.0.0.1': 'http://127.0.0.1:8000/onvif/device_service'});
     });
 
-    test('drops oversized and unusable replies', () async {
-      final camera = await fakeCamera(() => utf8.encode(probeMatch('x' * 20000)));
-      final found = await discoverOnvif(
-        '127.0.0.1',
-        target: InternetAddress.loopbackIPv4,
-        port: camera.port,
-        wait: const Duration(milliseconds: 300),
+    for (final (name, reply) in [
+      ('oversized', 'x' * 20000),
+      ('pointing at another host', 'http://192.168.1.5/onvif/device_service'),
+    ]) {
+      test('drops a reply that is $name', () async {
+        final camera = await fakeCamera(() => utf8.encode(probeMatch(reply)));
+        final found = await discoverOnvif(
+          '127.0.0.1',
+          target: InternetAddress.loopbackIPv4,
+          port: camera.port,
+          wait: const Duration(milliseconds: 300),
+        );
+        camera.close();
+        expect(found, isEmpty);
+      });
+    }
+
+    test('refuses a target off the local network', () {
+      expect(
+        () => discoverOnvif('127.0.0.1', target: InternetAddress('8.8.8.8')),
+        throwsArgumentError,
       );
-      camera.close();
-      expect(found, isEmpty);
     });
   });
 

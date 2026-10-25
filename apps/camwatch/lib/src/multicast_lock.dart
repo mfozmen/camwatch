@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Android drops multicast packets unless an app holds a multicast lock;
-/// MainActivity.kt answers this channel.
+/// Android drops multicast packets unless an app holds a multicast lock.
+/// The Android activity answers this channel.
 const multicastChannel = MethodChannel('io.github.mfozmen.camwatch/multicast');
 
 /// Runs [body] while holding the Wi-Fi multicast lock on Android; a plain
