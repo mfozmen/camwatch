@@ -5,9 +5,16 @@ import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_player.dart';
+
 void main() {
+  final player = FakePlayer();
   Future<void> pump(WidgetTester tester, Future<List<Device>?> Function() scan) =>
-      tester.pumpWidget(MaterialApp(home: ScanPage(scan: scan)));
+      tester.pumpWidget(
+        MaterialApp(
+          home: ScanPage(scan: scan, newPlayer: () => player),
+        ),
+      );
 
   final scanButton = find.widgetWithText(FloatingActionButton, 'Scan network');
 
@@ -90,6 +97,32 @@ void main() {
     expect(find.text('SDK 8000'), findsOneWidget);
     expect(find.text('ONVIF'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('192.168.1.10.*ONVIF', dotAll: true)), findsOneWidget);
+  });
+
+  testWidgets('a tap on a device with RTSP opens the player, other cards do nothing', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      () async => const [
+        Device('192.168.1.10', openPorts: [554]),
+        Device('192.168.1.20', openPorts: [80]),
+      ],
+    );
+    await tester.tap(scanButton);
+    await tester.pump();
+    expect(find.bySemanticsLabel(RegExp('192.168.1.10.*Watch', dotAll: true)), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('192.168.1.20.*No stream', dotAll: true)), findsOneWidget);
+    await tester.tap(find.text('192.168.1.20'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 device found'), findsNothing);
+    expect(find.text('2 devices found'), findsOneWidget);
+    await tester.tap(find.text('192.168.1.10'));
+    // Not pumpAndSettle: the player's spinner never settles and its deadline would fire.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const Key('video')), findsOneWidget);
+    expect(player.opened, ['rtsp://192.168.1.10:554/']);
   });
 
   testWidgets('counts one device in the singular', (tester) async {

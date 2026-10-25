@@ -87,6 +87,9 @@ class Device {
   final List<int> openPorts;
   final String? onvifAddress;
 
+  /// The port to stream from, 554 before 8554, or null without RTSP.
+  int? get rtspPort => [554, 8554].where(openPorts.contains).firstOrNull;
+
   @override
   bool operator ==(Object other) =>
       other is Device &&

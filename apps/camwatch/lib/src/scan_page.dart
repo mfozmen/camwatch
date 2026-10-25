@@ -1,6 +1,10 @@
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 
+import 'player.dart';
+import 'player_page.dart';
+import 'status_message.dart';
+
 const _portNames = {80: 'HTTP', 8080: 'HTTP', 554: 'RTSP', 8554: 'RTSP', 8000: 'SDK'};
 
 /// A port number as a person reads it on a card: "RTSP 554".
@@ -9,11 +13,13 @@ String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';
 enum _Phase { idle, scanning, noNetwork, failed, done }
 
 /// The first screen: one button that scans the local network and the
-/// devices it found. [scan] resolves to null when there is no LAN.
+/// devices it found. [scan] resolves to null when there is no LAN; a tap on
+/// a device with RTSP opens it in a fresh player from [newPlayer].
 class ScanPage extends StatefulWidget {
-  const ScanPage({super.key, required this.scan});
+  const ScanPage({super.key, required this.scan, required this.newPlayer});
 
   final Future<List<Device>?> Function() scan;
+  final StreamPlayer Function() newPlayer;
 
   @override
   State<ScanPage> createState() => _ScanPageState();
@@ -61,74 +67,43 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Widget _body() => switch (_phase) {
-    _Phase.idle => const _Message(
+    _Phase.idle => const StatusMessage(
       icon: Icons.videocam_outlined,
       title: 'Find the cameras on your network',
       body: 'camwatch scans your local network only. Nothing leaves your device.',
     ),
-    _Phase.scanning => const _Message(
+    _Phase.scanning => const StatusMessage(
       icon: Icons.radar,
       title: 'Scanning your network',
       body: 'Probing every address on your subnet. This takes a few seconds.',
     ),
-    _Phase.noNetwork => const _Message(
+    _Phase.noNetwork => const StatusMessage(
       icon: Icons.wifi_off,
       title: 'Not on a local network',
       body: 'Join a Wi-Fi or Ethernet network and scan again.',
     ),
-    _Phase.failed => _Message(
+    _Phase.failed => StatusMessage(
       icon: Icons.error_outline,
       iconColor: Theme.of(context).colorScheme.error,
       title: 'The scan failed',
       body: 'Check the connection and try again.',
     ),
-    _Phase.done when _devices.isEmpty => const _Message(
+    _Phase.done when _devices.isEmpty => const StatusMessage(
       icon: Icons.search_off,
       title: 'No devices found',
       body:
           'Cameras on another subnet or behind a VPN are out of reach. '
           "Scan again from the camera's own network.",
     ),
-    _Phase.done => _DeviceList(_devices),
+    _Phase.done => _DeviceList(_devices, newPlayer: widget.newPlayer),
   };
 }
 
-class _Message extends StatelessWidget {
-  const _Message({required this.icon, required this.title, required this.body, this.iconColor});
-
-  final IconData icon;
-  final Color? iconColor;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 32, 32, 96),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: iconColor ?? colors.primary),
-          const SizedBox(height: 24),
-          Text(title, style: text.headlineSmall, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(
-            body,
-            style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _DeviceList extends StatelessWidget {
-  const _DeviceList(this.devices);
+  const _DeviceList(this.devices, {required this.newPlayer});
 
   final List<Device> devices;
+  final StreamPlayer Function() newPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -148,72 +123,98 @@ class _DeviceList extends StatelessWidget {
             ),
           );
         }
-        return _DeviceCard(devices[index - 1]);
+        return _DeviceCard(devices[index - 1], newPlayer: newPlayer);
       },
     );
   }
 }
 
 class _DeviceCard extends StatelessWidget {
-  const _DeviceCard(this.device);
+  const _DeviceCard(this.device, {required this.newPlayer});
 
   final Device device;
+  final StreamPlayer Function() newPlayer;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
+    final playable = device.rtspPort != null;
     return MergeSemantics(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: colors.primaryContainer,
-                foregroundColor: colors.onPrimaryContainer,
-                child: const Icon(Icons.videocam_outlined),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            device.address,
-                            style: text.titleMedium?.copyWith(
-                              fontFeatures: const [FontFeature.tabularFigures()],
-                            ),
-                          ),
-                        ),
-                        if (device.onvifAddress != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: colors.tertiaryContainer,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'ONVIF',
-                              style: text.labelMedium?.copyWith(color: colors.onTertiaryContainer),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      device.openPorts.map(portLabel).join(' · '),
-                      style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-                    ),
-                  ],
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: playable
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PlayerPage(device: device, player: newPlayer()),
+                  ),
+                )
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: colors.primaryContainer,
+                  foregroundColor: colors.onPrimaryContainer,
+                  child: const Icon(Icons.videocam_outlined),
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              device.address,
+                              style: text.titleMedium?.copyWith(
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                          ),
+                          if (device.onvifAddress != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: colors.tertiaryContainer,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'ONVIF',
+                                style: text.labelMedium?.copyWith(
+                                  color: colors.onTertiaryContainer,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        device.openPorts.map(portLabel).join(' · '),
+                        style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: playable
+                      ? Icon(
+                          Icons.play_circle_outline,
+                          color: colors.primary,
+                          semanticLabel: 'Watch',
+                        )
+                      : Text(
+                          'No stream',
+                          style: text.labelMedium?.copyWith(color: colors.onSurfaceVariant),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

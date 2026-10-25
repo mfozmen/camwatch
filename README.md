@@ -36,7 +36,8 @@ Each file has a `.sha256` next to it.
 Open camwatch and tap **Scan network**. It probes every address on your
 subnet for the usual camera ports and asks for ONVIF cameras, then lists each
 device it found with its open ports and an **ONVIF** badge when the camera
-answered. A scan takes a few seconds.
+answered. A scan takes a few seconds. Tap a device with an RTSP port to
+watch its stream.
 
 ## Only scan networks you own
 
