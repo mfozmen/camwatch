@@ -9,6 +9,10 @@ import 'status_message.dart';
 /// How long a camera gets to send its first frames before the page gives up.
 const connectTimeout = Duration(seconds: 15);
 
+/// What is left of that once the player reports an error: cameras often fail
+/// on audio alone (G.726 has no decoder here) and still deliver a picture.
+const errorGrace = Duration(seconds: 3);
+
 /// Full-screen playback of one device's RTSP stream.
 class PlayerPage extends StatefulWidget {
   const PlayerPage({super.key, required this.device, required this.player});
@@ -31,7 +35,11 @@ class _PlayerPageState extends State<PlayerPage> {
   void initState() {
     super.initState();
     // The player's message can carry the URL, credentials included: it is never shown.
-    _errors = widget.player.errors.listen((_) => _fail());
+    _errors = widget.player.errors.listen((_) {
+      if (!_connecting) return;
+      _deadline?.cancel();
+      _deadline = Timer(errorGrace, _fail);
+    });
     _frames = widget.player.firstFrame.listen((_) {
       _deadline?.cancel();
       setState(() => _connecting = false);

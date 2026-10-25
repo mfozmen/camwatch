@@ -37,10 +37,23 @@ void main() {
   testWidgets('tells when the stream fails, without the player message', (tester) async {
     final player = await pump(tester);
     player.fail('Failed to open rtsp://user:secret@192.168.1.10:554/');
-    await tester.pump();
+    await tester.pump(errorGrace);
     expect(find.text('The camera did not answer'), findsOneWidget);
     expect(find.textContaining('port 554'), findsOneWidget);
     expect(find.textContaining('secret'), findsNothing);
+  });
+
+  testWidgets('an error followed by a picture is not a failure', (tester) async {
+    final player = await pump(tester);
+    player.fail("Failed to initialize a decoder for codec 'adpcm_g726le'.");
+    await tester.pump(const Duration(seconds: 1));
+    player.ready();
+    await tester.pump(errorGrace);
+    expect(find.text('The camera did not answer'), findsNothing);
+    expect(connecting, findsNothing);
+    player.fail('late audio error');
+    await tester.pump(errorGrace);
+    expect(find.text('The camera did not answer'), findsNothing);
   });
 
   testWidgets('gives up after the connect timeout and can try again', (tester) async {
