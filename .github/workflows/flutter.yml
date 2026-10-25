@@ -1,0 +1,154 @@
+name: Flutter
+
+# The Dart workspace: packages/camwatch_core (pure Dart) and apps/camwatch
+# (Flutter: Android and Windows). Format and analysis clean, tests on Linux and
+# Windows, 100% line coverage (tool/coverage_gate.dart), and every platform
+# build must compile.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default; a job that needs more says so itself.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Flutter analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Flutter version from the root pubspec, read without yq (windows-latest lacks it)
+        id: flutter
+        shell: bash
+        run: |
+          v=$(sed -n 's/^  flutter: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          # No exact pin found: stop, never build on whatever Flutter is newest.
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::no exact Flutter pin in pubspec.yaml"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: ${{ steps.flutter.outputs.version }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+
+  test:
+    name: Flutter test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Flutter version from the root pubspec, read without yq (windows-latest lacks it)
+        id: flutter
+        shell: bash
+        run: |
+          v=$(sed -n 's/^  flutter: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          # No exact pin found: stop, never build on whatever Flutter is newest.
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::no exact Flutter pin in pubspec.yaml"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: ${{ steps.flutter.outputs.version }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Core tests with coverage
+        working-directory: packages/camwatch_core
+        run: dart run coverage:test_with_coverage
+      - name: App tests with coverage
+        working-directory: apps/camwatch
+        run: flutter test --coverage
+      - name: Coverage gate (100% lines)
+        run: |
+          dart test tool/coverage_gate_test.dart
+          dart run tool/coverage_gate.dart packages/camwatch_core/coverage/lcov.info apps/camwatch/coverage/lcov.info
+
+  android:
+    name: Flutter Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad  # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Flutter version from the root pubspec, read without yq (windows-latest lacks it)
+        id: flutter
+        shell: bash
+        run: |
+          v=$(sed -n 's/^  flutter: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          # No exact pin found: stop, never build on whatever Flutter is newest.
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::no exact Flutter pin in pubspec.yaml"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: ${{ steps.flutter.outputs.version }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build the debug APK
+        working-directory: apps/camwatch
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: camwatch-android-debug
+          path: apps/camwatch/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  desktop:
+    name: Flutter desktop build (windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Flutter version from the root pubspec, read without yq (windows-latest lacks it)
+        id: flutter
+        shell: bash
+        run: |
+          v=$(sed -n 's/^  flutter: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          # No exact pin found: stop, never build on whatever Flutter is newest.
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::no exact Flutter pin in pubspec.yaml"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: ${{ steps.flutter.outputs.version }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build windows
+        working-directory: apps/camwatch
+        run: flutter build windows --debug
+      # The installers are built on every PR too, so a release never meets a broken one.
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Package
+        shell: bash
+        run: bash tool/package_desktop.sh 0.0.0 dist Debug
+      - name: The setup installs and uninstalls
+        shell: bash
+        run: |
+          target="$RUNNER_TEMP/camwatch-install"
+          MSYS_NO_PATHCONV=1 dist/camwatch-0.0.0-windows-x64-setup.exe             /CURRENTUSER /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/DIR=$(cygpath -w "$target")"
+          test -f "$target/camwatch.exe"
+          # Installed apps lists it as plain "camwatch" (the version has its own column).
+          MSYS_NO_PATHCONV=1 reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{9AB18EDE-8B6B-47A9-8E59-7DB4959CA69F}_is1' /v DisplayName | grep -E 'DisplayName +REG_SZ +camwatch\s*$'
+          MSYS_NO_PATHCONV=1 "$target/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          # The uninstaller finishes in a copy of itself: wait for it, up to 30 s.
+          for _ in $(seq 30); do [ -f "$target/camwatch.exe" ] || break; sleep 1; done
+          test ! -f "$target/camwatch.exe"

@@ -1,0 +1,146 @@
+name: CI
+
+# The CI helper scripts' tests, Dart coverage for SonarCloud, and the SonarCloud
+# quality gate. The app's analysis, tests and builds run in flutter.yml.
+# AI Review (ai-review.yml) is advisory except on a Critical.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Read-only by default; a job that needs more says so itself.
+permissions:
+  contents: read
+
+jobs:
+  # The CI helper scripts (ai-review uses them) are plain Python 3 with
+  # their own tests; the app itself is tested in flutter.yml.
+  scripts:
+    name: CI scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # the comment check diffs against the base branch
+      - run: python3 tool/check_comments.py --self-test
+      # A cheap gate before any review spends tokens: narrative comments the PR
+      # adds show as warnings on their lines; it never fails the job.
+      - name: Comments this PR adds (commentie, warning only)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          python3 tool/check_comments.py "origin/$BASE...HEAD" |
+            sed -E 's/^([^:]+):([0-9]+): (.*)$/::warning file=\1,line=\2::\3/'
+      - run: python3 .github/scripts/test_review_verdict_gate.py
+      - run: python3 .github/scripts/test_review_range.py
+      - run: python3 .github/scripts/test_deepseek_review.py
+      - run: python3 .github/scripts/test_issue_priority.py
+      - run: python3 .github/scripts/test_close_finished_epics.py
+      - run: python3 .github/scripts/test_security_verdict_gate.py
+      - run: python3 .github/scripts/test_sensitive_paths.py
+
+  # Dart coverage for Sonar, built in a job that holds no secrets: tests
+  # and builds run package code and build hooks, so they never run next to
+  # SONAR_TOKEN. The Sonar job only downloads the reports.
+  dart-coverage:
+    name: Dart coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Flutter version from the root pubspec, read without yq (windows-latest lacks it)
+        id: flutter
+        shell: bash
+        run: |
+          v=$(sed -n 's/^  flutter: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          # No exact pin found: stop, never build on whatever Flutter is newest.
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::no exact Flutter pin in pubspec.yaml"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: ${{ steps.flutter.outputs.version }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Coverage with paths Sonar can resolve
+        run: |
+          (cd packages/camwatch_core && dart run coverage:test_with_coverage)
+          (cd apps/camwatch && flutter test --coverage)
+          # lcov paths are relative to each package; Sonar resolves them from the repo root.
+          for pkg in packages/camwatch_core apps/camwatch; do
+            sed -i -e "s|^SF:$GITHUB_WORKSPACE/|SF:|" -e "\|^SF:$pkg/|!s|^SF:|SF:$pkg/|" "$pkg/coverage/lcov.info"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dart-lcov
+          path: |
+            packages/camwatch_core/coverage/lcov.info
+            apps/camwatch/coverage/lcov.info
+          if-no-files-found: error
+
+  # SonarCloud analysis + quality gate. Separate job so the deterministic gate
+  # above never waits on sonarcloud.io. Needs the SONAR_TOKEN repo secret and
+  # Automatic Analysis switched OFF in SonarCloud (it conflicts with CI-based
+  # analysis). Skipped on forks: secrets are not available there.
+  sonar:
+    name: SonarCloud
+    needs: dart-coverage
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # blame data for new-code detection
+      # Sonar's Dart analyzer needs the packages resolved, or every import is an
+      # "unknown URI" issue. pub get downloads the locked versions (hashes
+      # checked) and runs no package code; no cache, so nothing another run
+      # wrote is restored next to the token.
+      - name: Flutter version from the root pubspec, read without yq (windows-latest lacks it)
+        id: flutter
+        shell: bash
+        run: |
+          v=$(sed -n 's/^  flutter: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          # No exact pin found: stop, never build on whatever Flutter is newest.
+          [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::no exact Flutter pin in pubspec.yaml"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: ${{ steps.flutter.outputs.version }}
+          channel: stable
+          cache: false
+      - run: flutter pub get --enforce-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dart-lcov
+          path: .
+      - uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9  # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: -Dsonar.qualitygate.wait=true
+      # The quality gate checks ratings only, and code smells keep the rating:
+      # a PR must also bring no new Sonar issue. Public project, no token.
+      - name: No new Sonar issues
+        if: github.event_name == 'pull_request'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          url="https://sonarcloud.io/api/issues/search?componentKeys=mfozmen_camwatch&pullRequest=$PR&resolved=false&ps=100"
+          curl -sf "$url" | python3 -c '
+          import json, sys
+          issues = json.load(sys.stdin)["issues"]
+          for i in issues:
+              where = i["component"].split(":", 1)[1] + ":" + str(i.get("line", ""))
+              print(i["severity"], where, i["message"])
+          sys.exit(str(len(issues)) + " new SonarCloud issue(s) in this PR: fix them before merging." if issues else 0)
+          '

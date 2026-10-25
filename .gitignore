@@ -1,0 +1,21 @@
+# The CI helper scripts in .github/scripts are Python
+__pycache__/
+
+.env
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Claude Code personal overrides
+.claude/settings.local.json
+
+# Dart / Flutter
+.dart_tool/
+coverage/
+*.iml
+build/
+dist/
+**/test/failures/

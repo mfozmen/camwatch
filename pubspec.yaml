@@ -1,0 +1,16 @@
+# Dart pub workspace: one lockfile for every Dart package in the monorepo.
+#   packages/camwatch_core  pure Dart core (subnet math, discovery, RTSP/ONVIF parsing, security rules)
+#   apps/camwatch           the Flutter app: Android and Windows
+name: camwatch_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.6  # the one place the Flutter version is pinned; CI reads it from here
+
+workspace:
+  - packages/camwatch_core
+  - apps/camwatch
+
+dev_dependencies:
+  test: ^1.26.0
