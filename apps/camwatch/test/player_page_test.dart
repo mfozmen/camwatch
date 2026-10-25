@@ -43,6 +43,18 @@ void main() {
     expect(find.textContaining('secret'), findsNothing);
   });
 
+  testWidgets('repeated errors do not push the failure back', (tester) async {
+    final player = await pump(tester);
+    player.fail('first');
+    await tester.pump(const Duration(seconds: 2));
+    player.fail('second');
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('The camera did not answer'), findsOneWidget);
+    player.fail('after failure');
+    await tester.pump(errorGrace);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('an error followed by a picture is not a failure', (tester) async {
     final player = await pump(tester);
     player.fail("Failed to initialize a decoder for codec 'adpcm_g726le'.");

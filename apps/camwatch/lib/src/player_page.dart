@@ -30,13 +30,15 @@ class _PlayerPageState extends State<PlayerPage> {
   Timer? _deadline;
   var _connecting = true;
   var _failed = false;
+  var _graceArmed = false;
 
   @override
   void initState() {
     super.initState();
     // The player's message can carry the URL, credentials included: it is never shown.
     _errors = widget.player.errors.listen((_) {
-      if (!_connecting) return;
+      if (!_connecting || _failed || _graceArmed) return;
+      _graceArmed = true;
       _deadline?.cancel();
       _deadline = Timer(errorGrace, _fail);
     });
@@ -50,6 +52,7 @@ class _PlayerPageState extends State<PlayerPage> {
   void _open() {
     _deadline?.cancel();
     _deadline = Timer(connectTimeout, _fail);
+    _graceArmed = false;
     setState(() {
       _connecting = true;
       _failed = false;
