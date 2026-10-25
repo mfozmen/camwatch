@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:test/test.dart';
 
@@ -44,6 +47,21 @@ void main() {
         ),
       ]);
       expect(log, ['lock', 'ports 192.168.1.5,192.168.1.6', 'onvif 192.168.1.5']);
+    });
+
+    test('a failing scan fails the whole discovery once both have finished', () async {
+      final onvifDone = Completer<Map<String, String>>();
+      final discovery = discoverDevices(
+        network: () async => (address: '10.0.0.1', prefixLength: 30),
+        ports: (_) async => throw const SocketException('down'),
+        onvif: (_) => onvifDone.future,
+      );
+      var finished = false;
+      unawaited(discovery.then((_) => finished = true, onError: (_) => finished = true));
+      await Future<void>.delayed(Duration.zero);
+      expect(finished, isFalse);
+      onvifDone.complete({});
+      await expectLater(discovery, throwsA(isA<ParallelWaitError<Object?, Object?>>()));
     });
 
     test('runs bare without a lock', () async {

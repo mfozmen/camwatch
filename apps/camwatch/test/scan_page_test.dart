@@ -34,6 +34,22 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
+  for (final (name, finish) in [
+    ('finishes', (Completer<List<Device>?> c) => c.complete([])),
+    ('fails', (Completer<List<Device>?> c) => c.completeError(StateError('late'))),
+  ]) {
+    testWidgets('ignores a scan that $name after the page is gone', (tester) async {
+      final scanning = Completer<List<Device>?>();
+      await pump(tester, () => scanning.future);
+      await tester.tap(scanButton);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      finish(scanning);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('says so when the device is not on a local network', (tester) async {
     await pump(tester, () async => null);
     await tester.tap(scanButton);

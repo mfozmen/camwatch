@@ -17,9 +17,8 @@ Future<List<Device>?> discoverDevices({
   if (lan == null) return null;
   return lock(() async {
     final hosts = subnetHosts(lan.address, lan.prefixLength);
-    final openPorts = ports(hosts);
-    final found = onvif(lan.address);
-    return mergeDiscovery(await openPorts, await found);
+    final (openPorts, found) = await (ports(hosts), onvif(lan.address)).wait;
+    return mergeDiscovery(openPorts, found);
   });
 }
 

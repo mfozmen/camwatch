@@ -27,11 +27,13 @@ class _ScanPageState extends State<ScanPage> {
     setState(() => _phase = _Phase.scanning);
     try {
       final devices = await widget.scan();
+      if (!mounted) return;
       setState(() {
         _devices = devices ?? const [];
         _phase = devices == null ? _Phase.noNetwork : _Phase.done;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _phase = _Phase.failed);
     }
   }
