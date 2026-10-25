@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The port probe opens TCP connections to hosts on the local subnet. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="camwatch"
         android:name="${applicationName}"
