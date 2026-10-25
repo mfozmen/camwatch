@@ -1,0 +1,101 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:camwatch_core/camwatch_core.dart';
+import 'package:test/test.dart';
+
+String probeMatch(String xaddrs) =>
+    '<?xml version="1.0"?><e:Envelope xmlns:e="http://www.w3.org/2003/05/soap-envelope" '
+    'xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"><e:Body><d:ProbeMatches>'
+    '<d:ProbeMatch><d:XAddrs>$xaddrs</d:XAddrs></d:ProbeMatch>'
+    '</d:ProbeMatches></e:Body></e:Envelope>';
+
+/// A camera on the loopback interface that answers every probe with [reply].
+Future<RawDatagramSocket> fakeCamera(List<int> Function() reply) async {
+  final socket = await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
+  socket.listen((_) {
+    final datagram = socket.receive();
+    if (datagram != null) socket.send(reply(), datagram.address, datagram.port);
+  });
+  return socket;
+}
+
+void main() {
+  test('probeMessage asks for network video transmitters with a fresh id', () {
+    final message = probeMessage();
+    expect(message, contains('dn:NetworkVideoTransmitter'));
+    expect(message, contains('<w:MessageID>urn:uuid:'));
+    expect(message, contains('http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe'));
+    expect(probeMessage(), isNot(message));
+  });
+
+  group('parseProbeMatch', () {
+    test('keeps the local device service addresses', () {
+      final xaddrs = 'http://192.168.1.30/onvif/device_service http://8.8.8.8/onvif/device_service';
+      expect(parseProbeMatch(probeMatch(xaddrs)), ['http://192.168.1.30/onvif/device_service']);
+    });
+
+    test('yields nothing for a reply without XAddrs or with garbage', () {
+      expect(parseProbeMatch('<e:Envelope/>'), isEmpty);
+      expect(parseProbeMatch('not xml'), isEmpty);
+      expect(parseProbeMatch(probeMatch('ftp://192.168.1.30/x')), isEmpty);
+    });
+  });
+
+  group('discoverOnvif', () {
+    test('collects the service address of every camera that answers', () async {
+      final camera = await fakeCamera(
+        () => utf8.encode(probeMatch('http://127.0.0.1:8000/onvif/device_service')),
+      );
+      final found = await discoverOnvif(
+        '127.0.0.1',
+        target: InternetAddress.loopbackIPv4,
+        port: camera.port,
+        wait: const Duration(milliseconds: 300),
+      );
+      camera.close();
+      expect(found, {'127.0.0.1': 'http://127.0.0.1:8000/onvif/device_service'});
+    });
+
+    test('drops oversized and unusable replies', () async {
+      final camera = await fakeCamera(() => utf8.encode(probeMatch('x' * 20000)));
+      final found = await discoverOnvif(
+        '127.0.0.1',
+        target: InternetAddress.loopbackIPv4,
+        port: camera.port,
+        wait: const Duration(milliseconds: 300),
+      );
+      camera.close();
+      expect(found, isEmpty);
+    });
+  });
+
+  test('mergeDiscovery joins port and ONVIF results into one device per host', () {
+    final devices = mergeDiscovery(
+      {
+        '192.168.1.30': [80, 554],
+        '192.168.1.10': [8080],
+      },
+      {
+        '192.168.1.30': 'http://192.168.1.30/onvif/device_service',
+        '192.168.1.40': 'http://192.168.1.40/o',
+      },
+    );
+    expect(devices, [
+      const Device('192.168.1.10', openPorts: [8080]),
+      const Device(
+        '192.168.1.30',
+        openPorts: [80, 554],
+        onvifAddress: 'http://192.168.1.30/onvif/device_service',
+      ),
+      const Device('192.168.1.40', openPorts: [], onvifAddress: 'http://192.168.1.40/o'),
+    ]);
+    expect(devices.toSet(), hasLength(3));
+    expect(devices.first.toString(), 'Device(192.168.1.10, ports: [8080], onvif: null)');
+  });
+
+  test('the probe goes to the WS-Discovery group by default', () {
+    expect(wsDiscoveryGroup.address, '239.255.255.250');
+    expect(wsDiscoveryPort, 3702);
+  });
+}
