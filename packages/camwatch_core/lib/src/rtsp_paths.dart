@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'lan.dart';
 
-/// Sends one RTSP [request] to [host]:[port] and returns the reply head;
-/// throws when the camera does not answer within [timeout].
+/// Sends one RTSP [request] to a host and port and returns the first line
+/// of the reply. It throws when the camera has not answered within [timeout].
 typedef RtspExchange = Future<String> Function(
   String host,
   int port,
@@ -33,8 +33,8 @@ const streamPaths = [
 const maxRtspReplyBytes = 8 * 1024;
 
 /// Asks [host]:[port] for each of [paths] with a DESCRIBE, one after the
-/// other, and tells open (200), password-protected (401) and missing paths
-/// apart. A host off the local network is never asked.
+/// other until one is open, and tells open (200), password-protected (401)
+/// and missing paths apart. A host off the local network is never asked.
 Future<Map<String, PathStatus>> probeStreamPaths(
   String host,
   int port, {
@@ -53,6 +53,7 @@ Future<Map<String, PathStatus>> probeStreamPaths(
     } catch (_) {
       result[path] = PathStatus.error;
     }
+    if (result[path] == PathStatus.open) break;
   }
   return result;
 }
@@ -71,15 +72,20 @@ PathStatus _status(String reply) =>
 
 Future<String> _tcpExchange(String host, int port, String request, Duration timeout) async {
   final socket = await Socket.connect(host, port, timeout: timeout);
-  try {
+  Future<String> firstLine() async {
     socket.write(request);
     final head = StringBuffer();
-    await for (final chunk in socket.timeout(timeout)) {
+    await for (final chunk in socket) {
       head.write(latin1.decode(chunk));
-      if (head.toString().contains('\r\n\r\n')) break;
+      if (head.toString().contains('\n')) break;
       if (head.length > maxRtspReplyBytes) throw const FormatException('reply head too long');
     }
     return head.toString();
+  }
+
+  try {
+    // One bound for the whole reply: a per-chunk timeout lets a slow drip run for hours.
+    return await firstLine().timeout(timeout);
   } finally {
     socket.destroy();
   }

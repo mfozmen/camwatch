@@ -72,7 +72,7 @@ class _PlayerPageState extends State<PlayerPage> {
     final port = widget.device.rtspPort;
     Map<String, PathStatus> paths;
     try {
-      paths = await widget.findPaths(host, port!);
+      paths = await widget.findPaths(host, port!).timeout(connectTimeout);
     } catch (_) {
       paths = const {};
     }
@@ -103,9 +103,8 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).copyWith(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal, brightness: Brightness.dark),
-    );
+    // A full dark theme, not copyWith: that would keep the light text colours.
+    final dark = ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark);
     return Theme(
       data: dark,
       child: Scaffold(
@@ -116,18 +115,20 @@ class _PlayerPageState extends State<PlayerPage> {
           child: _failed
               ? StatusMessage(
                   icon: _needsPassword ? Icons.lock_outline : Icons.videocam_off_outlined,
-                  iconColor: dark.colorScheme.error,
+                  iconColor: _needsPassword ? null : dark.colorScheme.error,
                   title: _needsPassword
                       ? 'The camera asks for a password'
                       : 'The camera did not answer',
                   body: _needsPassword
-                      ? 'Entering one is not supported yet.'
+                      ? 'The stream is protected. Password login is coming.'
                       : 'No stream came from port ${widget.device.rtspPort}.',
-                  action: FilledButton.tonalIcon(
-                    onPressed: _open,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Try again'),
-                  ),
+                  action: _needsPassword
+                      ? null
+                      : FilledButton.tonalIcon(
+                          onPressed: _open,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try again'),
+                        ),
                 )
               : Stack(
                   alignment: Alignment.center,

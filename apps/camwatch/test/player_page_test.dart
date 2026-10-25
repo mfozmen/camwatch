@@ -40,11 +40,39 @@ void main() {
   testWidgets('says so when every path wants a password', (tester) async {
     final player = await pump(
       tester,
-      findPaths: (host, port) async => {'/': PathStatus.needsAuth, '/live': PathStatus.missing},
+      findPaths: (host, port) async => {'/': PathStatus.needsAuth, '/live': PathStatus.error},
     );
     expect(player.opened, isEmpty);
     expect(find.text('The camera asks for a password'), findsOneWidget);
-    expect(find.text('Try again'), findsOneWidget);
+    expect(find.text('Try again'), findsNothing);
+  });
+
+  testWidgets('the message stays readable when the app theme is light', (tester) async {
+    final player = FakePlayer();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(colorSchemeSeed: Colors.teal),
+        home: PlayerPage(
+          device: device,
+          player: player,
+          findPaths: (host, port) async => {'/': PathStatus.needsAuth},
+        ),
+      ),
+    );
+    await tester.pump();
+    final title = tester.widget<Text>(find.text('The camera asks for a password'));
+    expect(title.style!.color!.computeLuminance(), greaterThan(0.5));
+  });
+
+  testWidgets('a probe that never answers fails after the connect timeout', (tester) async {
+    final player = await pump(
+      tester,
+      findPaths: (host, port) => Completer<Map<String, PathStatus>>().future,
+    );
+    expect(connecting, findsOneWidget);
+    await tester.pump(connectTimeout);
+    expect(find.text('The camera did not answer'), findsOneWidget);
+    expect(player.opened, isEmpty);
   });
 
   testWidgets('fails when no path answers or the probe breaks', (tester) async {

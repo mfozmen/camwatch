@@ -13,20 +13,23 @@ RtspExchange fake(Map<String, String> replies) => (host, port, request, timeout)
 
 void main() {
   group('probeStreamPaths', () {
-    test('tells open, password-protected and missing paths apart', () async {
-      final result = await probeStreamPaths(
-        '192.168.1.10',
-        554,
-        paths: ['/', '/live', '/h264'],
-        exchange: fake({'/': '401 Unauthorized', '/live': '200 OK'}),
-      );
-      expect(result, {
-        '/': PathStatus.needsAuth,
-        '/live': PathStatus.open,
-        '/h264': PathStatus.missing,
-      });
-      expect(firstOpenPath(result), '/live');
-    });
+    test(
+      'tells open, password-protected and missing paths apart, stopping at the open one',
+      () async {
+        final result = await probeStreamPaths(
+          '192.168.1.10',
+          554,
+          paths: ['/', '/h264', '/live', '/stream1'],
+          exchange: fake({'/': '401 Unauthorized', '/live': '200 OK'}),
+        );
+        expect(result, {
+          '/': PathStatus.needsAuth,
+          '/h264': PathStatus.missing,
+          '/live': PathStatus.open,
+        });
+        expect(firstOpenPath(result), '/live');
+      },
+    );
 
     test('asks each path with a DESCRIBE for SDP, in order', () async {
       final requests = <String>[];
@@ -37,7 +40,7 @@ void main() {
         exchange: (host, port, request, timeout) async {
           requests.add('$host:$port ${request.split('\r\n').first}');
           expect(request, contains('Accept: application/sdp'));
-          return 'RTSP/1.0 200 OK\r\n\r\n';
+          return 'RTSP/1.0 ${request.contains('/b ') ? '200 OK' : '404 Not Found'}\r\n\r\n';
         },
       );
       expect(requests, [
@@ -98,18 +101,36 @@ void main() {
       expect(result, {'/live': PathStatus.open});
     });
 
-    test('gives up on a reply that never ends or never comes', () async {
+    test('gives up on a reply that never ends, never comes or drips slowly', () async {
+      const timeout = Duration(milliseconds: 400);
       final server = await camera((socket) {
-        socket.listen((_) => socket.add(List.filled(65536, 0x61)), onDone: socket.destroy);
+        socket.listen((request) async {
+          final path = utf8.decode(request).split(' ')[1];
+          if (path.endsWith('/mute')) return;
+          if (path.endsWith('/x')) {
+            socket.add(List.filled(65536, 0x61));
+          } else {
+            for (var i = 0; i < 6; i++) {
+              socket.add([0x61]);
+              await Future<void>.delayed(timeout ~/ 2);
+            }
+          }
+        }, onDone: socket.destroy);
       });
+      final started = DateTime.now();
       final result = await probeStreamPaths(
         '127.0.0.1',
         server.port,
-        paths: ['/x'],
-        timeout: const Duration(milliseconds: 500),
+        paths: ['/x', '/slow', '/mute'],
+        timeout: timeout,
       );
       await server.close();
-      expect(result, {'/x': PathStatus.error});
+      expect(result, {
+        '/x': PathStatus.error,
+        '/slow': PathStatus.error,
+        '/mute': PathStatus.error,
+      });
+      expect(DateTime.now().difference(started), lessThan(timeout * 4));
     });
   });
 }
