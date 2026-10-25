@@ -6,8 +6,8 @@ abstract interface class StreamPlayer {
   Future<void> open(String url);
   Stream<String> get errors;
 
-  /// True while the stream is still being fetched; false on the first frames.
-  Stream<bool> get buffering;
+  /// Fires once a picture is on screen: the stream is live.
+  Stream<void> get firstFrame;
   Widget get view;
   Future<void> dispose();
 }

@@ -22,7 +22,7 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   late final StreamSubscription<String> _errors;
-  late final StreamSubscription<bool> _buffering;
+  late final StreamSubscription<void> _frames;
   Timer? _deadline;
   var _connecting = true;
   var _failed = false;
@@ -32,8 +32,7 @@ class _PlayerPageState extends State<PlayerPage> {
     super.initState();
     // The player's message can carry the URL, credentials included: it is never shown.
     _errors = widget.player.errors.listen((_) => _fail());
-    _buffering = widget.player.buffering.listen((buffering) {
-      if (buffering) return;
+    _frames = widget.player.firstFrame.listen((_) {
       _deadline?.cancel();
       setState(() => _connecting = false);
     });
@@ -47,11 +46,16 @@ class _PlayerPageState extends State<PlayerPage> {
       _connecting = true;
       _failed = false;
     });
-    widget.player.open('rtsp://${widget.device.address}:${widget.device.rtspPort}/');
+    unawaited(
+      widget.player
+          .open('rtsp://${widget.device.address}:${widget.device.rtspPort}/')
+          .catchError((_) => _fail()),
+    );
   }
 
   void _fail() {
     _deadline?.cancel();
+    if (!mounted) return;
     setState(() => _failed = true);
   }
 
@@ -59,7 +63,7 @@ class _PlayerPageState extends State<PlayerPage> {
   void dispose() {
     _deadline?.cancel();
     _errors.cancel();
-    _buffering.cancel();
+    _frames.cancel();
     widget.player.dispose();
     super.dispose();
   }

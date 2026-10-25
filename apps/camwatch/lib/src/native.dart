@@ -16,7 +16,16 @@ Future<List<Device>?> scanLan() => discoverDevices(lock: withMulticastLock);
 class MediaKitPlayer implements StreamPlayer {
   MediaKitPlayer() {
     MediaKit.ensureInitialized();
-    _player = Player();
+    // FFmpeg may only nest the protocols RTSP itself needs: a camera's SDP
+    // cannot make it fetch http, file or data URLs.
+    _player = Player(
+      configuration: const PlayerConfiguration(protocolWhitelist: ['rtsp', 'rtp', 'udp', 'tcp']),
+    );
+    final native = _player.platform as NativePlayer;
+    // Interleaved TCP keeps the media on the connection to the camera, so an
+    // SDP media address off the LAN is never dialled; no copy of the stream on disk.
+    native.setProperty('rtsp-transport', 'tcp');
+    native.setProperty('cache-on-disk', 'no');
     _controller = VideoController(_player);
   }
 
@@ -30,7 +39,7 @@ class MediaKitPlayer implements StreamPlayer {
   Stream<String> get errors => _player.stream.error;
 
   @override
-  Stream<bool> get buffering => _player.stream.buffering;
+  Stream<void> get firstFrame => _player.stream.width.where((width) => (width ?? 0) > 0);
 
   @override
   Widget get view => Video(controller: _controller, controls: null);

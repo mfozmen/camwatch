@@ -14,7 +14,7 @@ class CamwatchApp extends StatelessWidget {
       title: 'camwatch',
       theme: ThemeData(colorSchemeSeed: Colors.teal),
       darkTheme: ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark),
-      home: ScanPage(scan: scanLan, newPlayer: MediaKitPlayer.new),
+      home: const ScanPage(scan: scanLan, newPlayer: MediaKitPlayer.new),
     );
   }
 }

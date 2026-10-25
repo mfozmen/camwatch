@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camwatch/src/player_page.dart';
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +55,31 @@ void main() {
     await tester.pump();
     expect(connecting, findsNothing);
     expect(find.byKey(const Key('video')), findsOneWidget);
+  });
+
+  testWidgets('an open that throws fails the page', (tester) async {
+    final player = FakePlayer()..opening = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlayerPage(device: device, player: player),
+      ),
+    );
+    player.opening!.completeError(StateError('no'));
+    await tester.pump();
+    expect(find.text('The camera did not answer'), findsOneWidget);
+  });
+
+  testWidgets('an open that fails after the page is gone is ignored', (tester) async {
+    final player = FakePlayer()..opening = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlayerPage(device: device, player: player),
+      ),
+    );
+    await tester.pumpWidget(const SizedBox());
+    player.opening!.completeError(StateError('late'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('disposes the player when the page goes', (tester) async {

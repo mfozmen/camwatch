@@ -6,20 +6,26 @@ import 'package:flutter/material.dart';
 class FakePlayer implements StreamPlayer {
   final opened = <String>[];
   final _errors = StreamController<String>.broadcast();
-  final _buffering = StreamController<bool>.broadcast();
+  final _frames = StreamController<void>.broadcast();
   var disposed = false;
 
+  /// When set, every [open] waits on it instead of succeeding at once.
+  Completer<void>? opening;
+
   void fail(String message) => _errors.add(message);
-  void ready() => _buffering.add(false);
+  void ready() => _frames.add(null);
 
   @override
-  Future<void> open(String url) async => opened.add(url);
+  Future<void> open(String url) {
+    opened.add(url);
+    return opening?.future ?? Future.value();
+  }
 
   @override
   Stream<String> get errors => _errors.stream;
 
   @override
-  Stream<bool> get buffering => _buffering.stream;
+  Stream<void> get firstFrame => _frames.stream;
 
   @override
   Widget get view => const ColoredBox(color: Colors.black, key: Key('video'));
