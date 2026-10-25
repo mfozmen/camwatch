@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- The port probe opens TCP connections to hosts on the local subnet. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- WS-Discovery (and mDNS later) need a multicast lock to receive replies on Wi-Fi. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <!-- That permission implies required Wi-Fi hardware; Ethernet-only devices scan too. -->
+    <uses-feature android:name="android.hardware.wifi" android:required="false"/>
     <application
         android:label="camwatch"
         android:name="${applicationName}"

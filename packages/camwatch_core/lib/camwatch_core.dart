@@ -4,3 +4,4 @@ library;
 export 'src/interfaces.dart';
 export 'src/lan.dart';
 export 'src/port_probe.dart';
+export 'src/ws_discovery.dart';
