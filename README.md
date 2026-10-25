@@ -37,7 +37,8 @@ Open camwatch and tap **Scan network**. It probes every address on your
 subnet for the usual camera ports and asks for ONVIF cameras, then lists each
 device it found with its open ports and an **ONVIF** badge when the camera
 answered. A scan takes a few seconds. Tap a device with an RTSP port to
-watch its stream.
+watch its stream: camwatch tries the common stream paths and plays the first
+one that needs no password. A camera that asks for one is reported as such.
 
 ## Only scan networks you own
 

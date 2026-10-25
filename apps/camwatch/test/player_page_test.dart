@@ -7,20 +7,53 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_player.dart';
 
+Future<Map<String, PathStatus>> rootOpen(String host, int port) async => {'/': PathStatus.open};
+
 void main() {
   const device = Device('192.168.1.10', openPorts: [80, 554]);
   final connecting = find.text('Connecting…');
 
-  Future<FakePlayer> pump(WidgetTester tester) async {
+  Future<FakePlayer> pump(WidgetTester tester, {FindPaths findPaths = rootOpen}) async {
     final player = FakePlayer();
     await tester.pumpWidget(
       MaterialApp(
-        home: PlayerPage(device: device, player: player),
+        home: PlayerPage(device: device, player: player, findPaths: findPaths),
       ),
     );
     await tester.pump();
     return player;
   }
+
+  testWidgets('streams from the first open path', (tester) async {
+    final asked = <String>[];
+    final player = await pump(
+      tester,
+      findPaths: (host, port) async {
+        asked.add('$host:$port');
+        return {'/': PathStatus.needsAuth, '/live': PathStatus.open, '/h264': PathStatus.open};
+      },
+    );
+    expect(asked, ['192.168.1.10:554']);
+    expect(player.opened, ['rtsp://192.168.1.10:554/live']);
+  });
+
+  testWidgets('says so when every path wants a password', (tester) async {
+    final player = await pump(
+      tester,
+      findPaths: (host, port) async => {'/': PathStatus.needsAuth, '/live': PathStatus.missing},
+    );
+    expect(player.opened, isEmpty);
+    expect(find.text('The camera asks for a password'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+  });
+
+  testWidgets('fails when no path answers or the probe breaks', (tester) async {
+    final player = await pump(tester, findPaths: (host, port) async => {'/': PathStatus.missing});
+    expect(player.opened, isEmpty);
+    expect(find.text('The camera did not answer'), findsOneWidget);
+    await pump(tester, findPaths: (host, port) async => throw StateError('down'));
+    expect(find.text('The camera did not answer'), findsOneWidget);
+  });
 
   testWidgets('opens the stream, says it is connecting, then shows the video', (tester) async {
     final player = await pump(tester);
@@ -86,7 +119,7 @@ void main() {
     final player = FakePlayer()..opening = Completer<void>();
     await tester.pumpWidget(
       MaterialApp(
-        home: PlayerPage(device: device, player: player),
+        home: PlayerPage(device: device, player: player, findPaths: rootOpen),
       ),
     );
     player.opening!.completeError(StateError('no'));
@@ -98,7 +131,7 @@ void main() {
     final player = FakePlayer()..opening = Completer<void>();
     await tester.pumpWidget(
       MaterialApp(
-        home: PlayerPage(device: device, player: player),
+        home: PlayerPage(device: device, player: player, findPaths: rootOpen),
       ),
     );
     await tester.pumpWidget(const SizedBox());
