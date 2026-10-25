@@ -1,7 +1,6 @@
-import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 
-import 'src/multicast_lock.dart';
+import 'src/native.dart';
 import 'src/scan_page.dart';
 
 void main() => runApp(const CamwatchApp());
@@ -15,7 +14,7 @@ class CamwatchApp extends StatelessWidget {
       title: 'camwatch',
       theme: ThemeData(colorSchemeSeed: Colors.teal),
       darkTheme: ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark),
-      home: ScanPage(scan: () => discoverDevices(lock: withMulticastLock)),
+      home: ScanPage(scan: scanLan, newPlayer: MediaKitPlayer.new),
     );
   }
 }

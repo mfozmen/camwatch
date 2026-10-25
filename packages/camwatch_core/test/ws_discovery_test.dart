@@ -107,6 +107,12 @@ void main() {
     expect(devices.first.toString(), 'Device(192.168.1.10, ports: [8080], onvif: null)');
   });
 
+  test('a device streams from 554 before 8554, or not at all', () {
+    expect(const Device('10.0.0.1', openPorts: [8554, 80, 554]).rtspPort, 554);
+    expect(const Device('10.0.0.1', openPorts: [8554]).rtspPort, 8554);
+    expect(const Device('10.0.0.1', openPorts: [80]).rtspPort, isNull);
+  });
+
   test('the probe goes to the WS-Discovery group by default', () {
     expect(wsDiscoveryGroup.address, '239.255.255.250');
     expect(wsDiscoveryPort, 3702);
