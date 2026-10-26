@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -21,9 +23,22 @@ class MediaKitPlayer implements StreamPlayer {
     // FFmpeg may only nest the protocols RTSP itself needs: a camera's SDP
     // cannot make it fetch http, file or data URLs.
     _player = Player(
-      configuration: const PlayerConfiguration(protocolWhitelist: ['rtsp', 'rtp', 'udp', 'tcp']),
+      configuration: const PlayerConfiguration(
+        protocolWhitelist: ['rtsp', 'rtp', 'udp', 'tcp'],
+        // FFmpeg announces an RTSP redirect at its info level, which mpv
+        // relays as verbose; nothing less chatty carries it.
+        logLevel: MPVLogLevel.v,
+      ),
     );
     final native = _player.platform as NativePlayer;
+    // FFmpeg follows an RTSP 3xx on its own, keeping the login for the new
+    // host; stopping on the announcement is the only hook libmpv offers.
+    _redirects = _player.stream.log.where((line) => line.text.contains('Redirecting to')).listen((
+      _,
+    ) {
+      unawaited(native.command(['stop']));
+      _redirected.add(null);
+    });
     // Interleaved TCP keeps the media on the connection to the camera, so an
     // SDP media address off the LAN is never dialled; no copy of the stream on disk.
     native.setProperty('rtsp-transport', 'tcp');
@@ -35,6 +50,8 @@ class MediaKitPlayer implements StreamPlayer {
   late final Player _player;
   late final NativePlayer _native;
   late final VideoController _controller;
+  late final StreamSubscription<PlayerLog> _redirects;
+  final _redirected = StreamController<void>.broadcast();
 
   // Not Player.open: it writes the URL, password included, to a playlist file on disk.
   @override
@@ -50,10 +67,17 @@ class MediaKitPlayer implements StreamPlayer {
   Stream<void> get firstFrame => _player.stream.width.where((width) => (width ?? 0) > 0);
 
   @override
+  Stream<void> get redirected => _redirected.stream;
+
+  @override
   Widget get view => Video(controller: _controller, controls: null);
 
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    await _redirects.cancel();
+    await _redirected.close();
+    await _player.dispose();
+  }
 }
 
 /// Logins in the OS secure store: the Android Keystore, DPAPI on Windows.

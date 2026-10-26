@@ -195,6 +195,22 @@ void main() {
     expect(find.byKey(const Key('video')), findsOneWidget);
   });
 
+  testWidgets('a redirect is refused at once and said so, with no address shown', (tester) async {
+    final player = await pump(tester);
+    player.redirect();
+    await tester.pump();
+    expect(find.text('The camera tried to send you elsewhere'), findsOneWidget);
+    expect(find.textContaining('rtsp://'), findsNothing);
+    expect(connecting, findsNothing);
+    player.fail('Failed to open rtsp://192.168.1.10:554/');
+    await tester.pump(errorGrace);
+    expect(find.text('The camera tried to send you elsewhere'), findsOneWidget);
+    expect(find.text('The camera did not answer'), findsNothing);
+    await tester.tap(find.text('Try again'));
+    await tester.pump();
+    expect(player.opened, ['rtsp://192.168.1.10:554/', 'rtsp://192.168.1.10:554/']);
+  });
+
   testWidgets('tells when the stream fails, without the player message', (tester) async {
     final player = await pump(tester);
     player.fail('Failed to open rtsp://user:secret@192.168.1.10:554/');
