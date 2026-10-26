@@ -43,7 +43,9 @@ const _plainWeb = Finding(
       'camera offers it.',
 );
 
-const _unchecked = Finding(
+/// The finding an RTSP device carries until its stream check has run; the
+/// app drops it while that check is in flight.
+const uncheckedStream = Finding(
   Grade.amber,
   'The stream has not been checked yet',
   'Open the camera once: camwatch then sees whether it asks for a password.',
@@ -74,7 +76,7 @@ List<Finding> findings(Device device, Map<String, PathStatus> streams) {
     if (hasWeb && !ports.contains(443)) _plainWeb,
     if (ports.contains(21)) _ftp,
     if (ports.contains(8000)) _sdk,
-    if (device.rtspPort != null && streams.isEmpty) _unchecked,
+    if (device.rtspPort != null && streams.isEmpty) uncheckedStream,
   ];
 }
 

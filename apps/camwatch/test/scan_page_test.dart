@@ -107,11 +107,57 @@ void main() {
     expect(find.text('SDK 8000'), findsOneWidget);
     expect(find.text('ONVIF'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('192.168.1.10.*ONVIF', dotAll: true)), findsOneWidget);
+    expect(find.byTooltip('Watch'), findsOneWidget);
   });
 
-  testWidgets('a tap on a device with RTSP opens the player, other cards do nothing', (
-    tester,
-  ) async {
+  testWidgets('shows each device\'s grade once its stream is checked', (tester) async {
+    final checking = Completer<Map<String, PathStatus>>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ScanPage(
+          scan: () async => const [
+            Device('192.168.1.10', openPorts: [23, 554]),
+            Device('192.168.1.20', openPorts: [80]),
+            Device('192.168.1.30', openPorts: [80, 443]),
+          ],
+          newPlayer: () => player,
+          findPaths: (host, port) => checking.future,
+          store: FakeStore(),
+        ),
+      ),
+    );
+    await tester.tap(scanButton);
+    await tester.pump();
+    expect(find.text('Checking stream…'), findsOneWidget);
+    expect(find.text('At risk · 1 finding'), findsOneWidget);
+    expect(find.text('No issues found'), findsOneWidget);
+    checking.complete({'/': PathStatus.open});
+    await tester.pump();
+    expect(find.text('Checking stream…'), findsNothing);
+    expect(find.text('Exposed · 2 findings'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('192.168.1.10.*Exposed', dotAll: true)), findsOneWidget);
+  });
+
+  testWidgets('a stream check that fails leaves the stream unchecked', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ScanPage(
+          scan: () async => const [
+            Device('192.168.1.10', openPorts: [554]),
+          ],
+          newPlayer: () => player,
+          findPaths: (host, port) async => throw StateError('down'),
+          store: FakeStore(),
+        ),
+      ),
+    );
+    await tester.tap(scanButton);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('At risk · 1 finding'), findsOneWidget);
+  });
+
+  testWidgets('a tap on a device opens its report, the watch button the player', (tester) async {
     await pump(
       tester,
       () async => const [
@@ -121,14 +167,29 @@ void main() {
     );
     await tester.tap(scanButton);
     await tester.pump();
-    expect(find.bySemanticsLabel(RegExp('192.168.1.10.*Watch', dotAll: true)), findsOneWidget);
+    await tester.pump();
     expect(find.bySemanticsLabel(RegExp('192.168.1.20.*No stream', dotAll: true)), findsOneWidget);
     await tester.tap(find.text('192.168.1.20'));
     await tester.pumpAndSettle();
-    expect(find.text('1 device found'), findsNothing);
-    expect(find.text('2 devices found'), findsOneWidget);
+    expect(find.text('The web page has no HTTPS'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('192.168.1.10'));
+    await tester.pumpAndSettle();
+    expect(find.text('Anyone on the network can watch the stream'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Watch'));
     // Not pumpAndSettle: the player's spinner never settles and its deadline would fire.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const Key('video')), findsOneWidget);
+    expect(player.opened, ['rtsp://192.168.1.10:554/']);
+    player.opened.clear();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Watch'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byKey(const Key('video')), findsOneWidget);

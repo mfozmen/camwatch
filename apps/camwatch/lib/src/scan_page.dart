@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 
@@ -5,6 +7,7 @@ import 'credential_store.dart';
 
 import 'player.dart';
 import 'player_page.dart';
+import 'report_page.dart';
 import 'status_message.dart';
 
 const _portNames = {
@@ -47,6 +50,7 @@ class ScanPage extends StatefulWidget {
 class _ScanPageState extends State<ScanPage> {
   var _phase = _Phase.idle;
   var _devices = const <Device>[];
+  var _streams = <String, Map<String, PathStatus>>{};
 
   Future<void> _scan() async {
     setState(() => _phase = _Phase.scanning);
@@ -55,13 +59,50 @@ class _ScanPageState extends State<ScanPage> {
       if (!mounted) return;
       setState(() {
         _devices = devices ?? const [];
+        _streams = {};
         _phase = devices == null ? _Phase.noNetwork : _Phase.done;
       });
+      for (final device in _devices) {
+        if (device.rtspPort != null) unawaited(_checkStream(device));
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _phase = _Phase.failed);
     }
   }
+
+  Future<void> _checkStream(Device device) async {
+    final scan = _devices;
+    Map<String, PathStatus> streams;
+    try {
+      streams = await widget.findPaths(device.address, device.rtspPort!);
+    } catch (_) {
+      streams = const {};
+    }
+    if (!mounted || !identical(scan, _devices)) return;
+    setState(() => _streams[device.address] = streams);
+  }
+
+  void _watch(Device device) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => PlayerPage(
+        device: device,
+        player: widget.newPlayer(),
+        findPaths: widget.findPaths,
+        store: widget.store,
+      ),
+    ),
+  );
+
+  void _report(Device device) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => ReportPage(
+        device: device,
+        streams: _streams[device.address],
+        onWatch: device.rtspPort == null ? null : () => _watch(device),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -114,27 +155,22 @@ class _ScanPageState extends State<ScanPage> {
           'Cameras on another subnet or behind a VPN are out of reach. '
           "Scan again from the camera's own network.",
     ),
-    _Phase.done => _DeviceList(
-      _devices,
-      newPlayer: widget.newPlayer,
-      findPaths: widget.findPaths,
-      store: widget.store,
-    ),
+    _Phase.done => _DeviceList(_devices, streams: _streams, onReport: _report, onWatch: _watch),
   };
 }
 
 class _DeviceList extends StatelessWidget {
   const _DeviceList(
     this.devices, {
-    required this.newPlayer,
-    required this.findPaths,
-    required this.store,
+    required this.streams,
+    required this.onReport,
+    required this.onWatch,
   });
 
   final List<Device> devices;
-  final StreamPlayer Function() newPlayer;
-  final FindPaths findPaths;
-  final CredentialStore store;
+  final Map<String, Map<String, PathStatus>> streams;
+  final void Function(Device) onReport;
+  final void Function(Device) onWatch;
 
   @override
   Widget build(BuildContext context) {
@@ -154,60 +190,62 @@ class _DeviceList extends StatelessWidget {
             ),
           );
         }
+        final device = devices[index - 1];
         return _DeviceCard(
-          devices[index - 1],
-          newPlayer: newPlayer,
-          findPaths: findPaths,
-          store: store,
+          device,
+          streams: device.rtspPort == null ? const {} : streams[device.address],
+          onReport: () => onReport(device),
+          onWatch: () => onWatch(device),
         );
       },
     );
   }
 }
 
+/// One device: its grade, address and ports; [streams] is null while the
+/// stream check is still running.
 class _DeviceCard extends StatelessWidget {
   const _DeviceCard(
     this.device, {
-    required this.newPlayer,
-    required this.findPaths,
-    required this.store,
+    required this.streams,
+    required this.onReport,
+    required this.onWatch,
   });
 
   final Device device;
-  final StreamPlayer Function() newPlayer;
-  final FindPaths findPaths;
-  final CredentialStore store;
+  final Map<String, PathStatus>? streams;
+  final VoidCallback onReport;
+  final VoidCallback onWatch;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final playable = device.rtspPort != null;
+    final checking = streams == null;
+    final found = findings(device, streams ?? const {});
+    final grade = checking ? null : gradeOf(found);
+    final color = grade?.color(colors) ?? colors.onSurfaceVariant;
+    final count = found.length;
+    final status = switch (grade) {
+      null => 'Checking stream…',
+      Grade.green => grade.label,
+      _ => '${grade.label} · $count ${count == 1 ? 'finding' : 'findings'}',
+    };
     return MergeSemantics(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: playable
-              ? () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => PlayerPage(
-                      device: device,
-                      player: newPlayer(),
-                      findPaths: findPaths,
-                      store: store,
-                    ),
-                  ),
-                )
-              : null,
+          onTap: onReport,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: colors.primaryContainer,
-                  foregroundColor: colors.onPrimaryContainer,
-                  child: const Icon(Icons.videocam_outlined),
+                  backgroundColor: color.withValues(alpha: 0.15),
+                  foregroundColor: color,
+                  child: Icon(grade?.icon ?? Icons.videocam_outlined),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -240,27 +278,30 @@ class _DeviceCard extends StatelessWidget {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
                         device.openPorts.map(portLabel).join(' · '),
                         style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
                       ),
+                      const SizedBox(height: 4),
+                      Text(status, style: text.labelMedium?.copyWith(color: color)),
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: playable
-                      ? Icon(
-                          Icons.play_circle_outline,
-                          color: colors.primary,
-                          semanticLabel: 'Watch',
-                        )
-                      : Text(
-                          'No stream',
-                          style: text.labelMedium?.copyWith(color: colors.onSurfaceVariant),
-                        ),
-                ),
+                if (playable)
+                  IconButton(
+                    onPressed: onWatch,
+                    tooltip: 'Watch',
+                    icon: Icon(Icons.play_circle_outline, color: colors.primary),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      'No stream',
+                      style: text.labelMedium?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                  ),
               ],
             ),
           ),

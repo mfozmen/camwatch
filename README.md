@@ -36,10 +36,13 @@ Each file has a `.sha256` next to it.
 
 Open camwatch and tap **Scan network**. It probes every address on your
 subnet for the usual camera ports and asks for ONVIF cameras, then lists each
-device it found with its open ports and an **ONVIF** badge when the camera
-answered. A scan takes a few seconds. Tap a device with an RTSP port to
-watch its stream: camwatch tries the common stream paths and plays the first
-one that needs no password. When every path asks for one, enter the camera's
+device it found with its open ports, an **ONVIF** badge when the camera
+answered, and its grade: **Exposed** (red), **At risk** (amber) or **No issues
+found** (green). A scan takes a few seconds; the stream of each RTSP device is
+checked right after it. Tap a device for its report: every finding with what
+to do about it, worst first. The play button next to a device with an RTSP
+port watches its stream: camwatch tries the common stream paths and plays the
+first one that needs no password. When every path asks for one, enter the camera's
 username and password. They go into your device's secure storage (the Android
 Keystore, DPAPI on Windows), tied to that address, and are used again the next
 time; they are never written to a file or a log.
