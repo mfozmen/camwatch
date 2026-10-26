@@ -75,6 +75,39 @@ void main() {
       });
     }
 
+    test('keeps at most maxSenders senders, however many addresses answer', () async {
+      // One probe, replies from more loopback addresses than the cap, each
+      // naming itself; a spoofing device on the Wi-Fi could do the same.
+      final senders = <RawDatagramSocket>[];
+      final camera = await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
+      camera.listen((_) async {
+        final probe = camera.receive();
+        if (probe == null) return;
+        for (var i = 0; i < maxSenders + 20; i++) {
+          final address = '127.0.${1 + i ~/ 200}.${1 + i % 200}';
+          final sender = await RawDatagramSocket.bind(address, 0);
+          senders.add(sender);
+          sender.send(
+            utf8.encode(probeMatch('http://$address/onvif/device_service')),
+            probe.address,
+            probe.port,
+          );
+        }
+      });
+      final found = await discoverOnvif(
+        '127.0.0.1',
+        target: InternetAddress.loopbackIPv4,
+        port: camera.port,
+        wait: const Duration(seconds: 2),
+      );
+      camera.close();
+      for (final sender in senders) {
+        sender.close();
+      }
+      expect(senders, hasLength(maxSenders + 20));
+      expect(found, hasLength(maxSenders));
+    });
+
     test('refuses a target off the local network', () {
       expect(
         () => discoverOnvif('127.0.0.1', target: InternetAddress('8.8.8.8')),
