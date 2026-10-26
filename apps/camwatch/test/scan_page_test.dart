@@ -12,7 +12,11 @@ void main() {
   Future<void> pump(WidgetTester tester, Future<List<Device>?> Function() scan) =>
       tester.pumpWidget(
         MaterialApp(
-          home: ScanPage(scan: scan, newPlayer: () => player),
+          home: ScanPage(
+            scan: scan,
+            newPlayer: () => player,
+            findPaths: (host, port) async => {'/': PathStatus.open},
+          ),
         ),
       );
 

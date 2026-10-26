@@ -5,4 +5,5 @@ export 'src/discover.dart';
 export 'src/interfaces.dart';
 export 'src/lan.dart';
 export 'src/port_probe.dart';
+export 'src/rtsp_paths.dart';
 export 'src/ws_discovery.dart';

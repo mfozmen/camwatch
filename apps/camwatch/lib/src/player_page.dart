@@ -13,12 +13,22 @@ const connectTimeout = Duration(seconds: 15);
 /// on audio alone (G.726 has no decoder here) and still deliver a picture.
 const errorGrace = Duration(seconds: 3);
 
-/// Full-screen playback of one device's RTSP stream.
+/// Which stream paths a camera serves; [probeStreamPaths] in the app.
+typedef FindPaths = Future<Map<String, PathStatus>> Function(String host, int port);
+
+/// Full-screen playback of one device's RTSP stream: the first path that
+/// streams without a password.
 class PlayerPage extends StatefulWidget {
-  const PlayerPage({super.key, required this.device, required this.player});
+  const PlayerPage({
+    super.key,
+    required this.device,
+    required this.player,
+    required this.findPaths,
+  });
 
   final Device device;
   final StreamPlayer player;
+  final FindPaths findPaths;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -30,6 +40,7 @@ class _PlayerPageState extends State<PlayerPage> {
   Timer? _deadline;
   var _connecting = true;
   var _failed = false;
+  var _needsPassword = false;
   var _graceArmed = false;
 
   @override
@@ -49,19 +60,30 @@ class _PlayerPageState extends State<PlayerPage> {
     _open();
   }
 
-  void _open() {
+  Future<void> _open() async {
     _deadline?.cancel();
-    _deadline = Timer(connectTimeout, _fail);
     _graceArmed = false;
     setState(() {
       _connecting = true;
       _failed = false;
+      _needsPassword = false;
     });
-    unawaited(
-      widget.player
-          .open('rtsp://${widget.device.address}:${widget.device.rtspPort}/')
-          .catchError((_) => _fail()),
-    );
+    final host = widget.device.address;
+    final port = widget.device.rtspPort;
+    Map<String, PathStatus> paths;
+    try {
+      paths = await widget.findPaths(host, port!).timeout(connectTimeout);
+    } catch (_) {
+      paths = const {};
+    }
+    if (!mounted) return;
+    final path = firstOpenPath(paths);
+    if (path == null) {
+      _needsPassword = paths.containsValue(PathStatus.needsAuth);
+      return _fail();
+    }
+    _deadline = Timer(connectTimeout, _fail);
+    unawaited(widget.player.open('rtsp://$host:$port$path').catchError((_) => _fail()));
   }
 
   void _fail() {
@@ -81,9 +103,8 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).copyWith(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal, brightness: Brightness.dark),
-    );
+    // A full dark theme, not copyWith: that would keep the light text colours.
+    final dark = ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark);
     return Theme(
       data: dark,
       child: Scaffold(
@@ -93,15 +114,21 @@ class _PlayerPageState extends State<PlayerPage> {
         body: Center(
           child: _failed
               ? StatusMessage(
-                  icon: Icons.videocam_off_outlined,
-                  iconColor: dark.colorScheme.error,
-                  title: 'The camera did not answer',
-                  body: 'It did not send a picture on port ${widget.device.rtspPort}.',
-                  action: FilledButton.tonalIcon(
-                    onPressed: _open,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Try again'),
-                  ),
+                  icon: _needsPassword ? Icons.lock_outline : Icons.videocam_off_outlined,
+                  iconColor: _needsPassword ? null : dark.colorScheme.error,
+                  title: _needsPassword
+                      ? 'The camera asks for a password'
+                      : 'The camera did not answer',
+                  body: _needsPassword
+                      ? 'The stream is protected. Password login is coming.'
+                      : 'No stream came from port ${widget.device.rtspPort}.',
+                  action: _needsPassword
+                      ? null
+                      : FilledButton.tonalIcon(
+                          onPressed: _open,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try again'),
+                        ),
                 )
               : Stack(
                   alignment: Alignment.center,

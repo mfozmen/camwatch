@@ -16,10 +16,11 @@ enum _Phase { idle, scanning, noNetwork, failed, done }
 /// devices it found. [scan] resolves to null when there is no LAN; a tap on
 /// a device with RTSP opens it in a fresh player from [newPlayer].
 class ScanPage extends StatefulWidget {
-  const ScanPage({super.key, required this.scan, required this.newPlayer});
+  const ScanPage({super.key, required this.scan, required this.newPlayer, required this.findPaths});
 
   final Future<List<Device>?> Function() scan;
   final StreamPlayer Function() newPlayer;
+  final FindPaths findPaths;
 
   @override
   State<ScanPage> createState() => _ScanPageState();
@@ -95,15 +96,16 @@ class _ScanPageState extends State<ScanPage> {
           'Cameras on another subnet or behind a VPN are out of reach. '
           "Scan again from the camera's own network.",
     ),
-    _Phase.done => _DeviceList(_devices, newPlayer: widget.newPlayer),
+    _Phase.done => _DeviceList(_devices, newPlayer: widget.newPlayer, findPaths: widget.findPaths),
   };
 }
 
 class _DeviceList extends StatelessWidget {
-  const _DeviceList(this.devices, {required this.newPlayer});
+  const _DeviceList(this.devices, {required this.newPlayer, required this.findPaths});
 
   final List<Device> devices;
   final StreamPlayer Function() newPlayer;
+  final FindPaths findPaths;
 
   @override
   Widget build(BuildContext context) {
@@ -123,17 +125,18 @@ class _DeviceList extends StatelessWidget {
             ),
           );
         }
-        return _DeviceCard(devices[index - 1], newPlayer: newPlayer);
+        return _DeviceCard(devices[index - 1], newPlayer: newPlayer, findPaths: findPaths);
       },
     );
   }
 }
 
 class _DeviceCard extends StatelessWidget {
-  const _DeviceCard(this.device, {required this.newPlayer});
+  const _DeviceCard(this.device, {required this.newPlayer, required this.findPaths});
 
   final Device device;
   final StreamPlayer Function() newPlayer;
+  final FindPaths findPaths;
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +151,8 @@ class _DeviceCard extends StatelessWidget {
           onTap: playable
               ? () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => PlayerPage(device: device, player: newPlayer()),
+                    builder: (_) =>
+                        PlayerPage(device: device, player: newPlayer(), findPaths: findPaths),
                   ),
                 )
               : null,

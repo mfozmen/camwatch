@@ -1,3 +1,4 @@
+import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 
 import 'src/native.dart';
@@ -14,7 +15,11 @@ class CamwatchApp extends StatelessWidget {
       title: 'camwatch',
       theme: ThemeData(colorSchemeSeed: Colors.teal),
       darkTheme: ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark),
-      home: const ScanPage(scan: scanLan, newPlayer: MediaKitPlayer.new),
+      home: const ScanPage(
+        scan: scanLan,
+        newPlayer: MediaKitPlayer.new,
+        findPaths: probeStreamPaths,
+      ),
     );
   }
 }
