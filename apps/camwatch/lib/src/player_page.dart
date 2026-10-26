@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 
+import 'credential_store.dart';
+import 'credentials_dialog.dart';
 import 'player.dart';
 import 'status_message.dart';
 
@@ -16,19 +18,21 @@ const errorGrace = Duration(seconds: 3);
 /// Which stream paths a camera serves; [probeStreamPaths] in the app.
 typedef FindPaths = Future<Map<String, PathStatus>> Function(String host, int port);
 
-/// Full-screen playback of one device's RTSP stream: the first path that
-/// streams without a password.
+/// Full-screen playback of one device's RTSP stream: the first open path,
+/// else the first protected one with the login kept in [store].
 class PlayerPage extends StatefulWidget {
   const PlayerPage({
     super.key,
     required this.device,
     required this.player,
     required this.findPaths,
+    required this.store,
   });
 
   final Device device;
   final StreamPlayer player;
   final FindPaths findPaths;
+  final CredentialStore store;
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -42,6 +46,11 @@ class _PlayerPageState extends State<PlayerPage> {
   var _failed = false;
   var _needsPassword = false;
   var _graceArmed = false;
+  String? _protectedPath;
+  Credentials? _credentials;
+
+  String get _host => widget.device.address;
+  int get _port => widget.device.rtspPort!;
 
   @override
   void initState() {
@@ -61,29 +70,61 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _open() async {
-    _deadline?.cancel();
-    _graceArmed = false;
+    _restart();
     setState(() {
-      _connecting = true;
-      _failed = false;
       _needsPassword = false;
+      _credentials = null;
     });
-    final host = widget.device.address;
-    final port = widget.device.rtspPort;
     Map<String, PathStatus> paths;
     try {
-      paths = await widget.findPaths(host, port!).timeout(connectTimeout);
+      paths = await widget.findPaths(_host, _port).timeout(connectTimeout);
     } catch (_) {
       paths = const {};
     }
     if (!mounted) return;
-    final path = firstOpenPath(paths);
-    if (path == null) {
-      _needsPassword = paths.containsValue(PathStatus.needsAuth);
+    final path = firstPath(paths, PathStatus.open);
+    if (path != null) return _play(rtspUrl(_host, _port, path));
+    _protectedPath = firstPath(paths, PathStatus.needsAuth);
+    if (_protectedPath == null) return _fail();
+    Credentials? kept;
+    try {
+      kept = await widget.store.read(_host);
+    } catch (_) {}
+    if (!mounted) return;
+    if (kept == null) {
+      _needsPassword = true;
       return _fail();
     }
+    _login(kept);
+  }
+
+  Future<void> _askPassword() async {
+    final typed = await askCredentials(context, current: _credentials);
+    if (typed == null || !mounted) return;
+    try {
+      await widget.store.write(_host, typed);
+    } catch (_) {}
+    if (!mounted) return;
+    _restart();
+    setState(() => _needsPassword = false);
+    _login(typed);
+  }
+
+  void _login(Credentials credentials) {
+    _credentials = credentials;
+    _play(rtspUrl(_host, _port, _protectedPath!, credentials));
+  }
+
+  void _restart() {
+    _deadline?.cancel();
+    _graceArmed = false;
+    _connecting = true;
+    _failed = false;
+  }
+
+  void _play(String url) {
     _deadline = Timer(connectTimeout, _fail);
-    unawaited(widget.player.open('rtsp://$host:$port$path').catchError((_) => _fail()));
+    unawaited(widget.player.open(url).catchError((_) => _fail()));
   }
 
   void _fail() {
@@ -101,6 +142,54 @@ class _PlayerPageState extends State<PlayerPage> {
     super.dispose();
   }
 
+  Widget _failure(ThemeData theme) {
+    final tryAgain = FilledButton.tonalIcon(
+      onPressed: _open,
+      icon: const Icon(Icons.refresh),
+      label: const Text('Try again'),
+    );
+    if (_needsPassword) {
+      return StatusMessage(
+        icon: Icons.lock_outline,
+        title: 'The camera asks for a password',
+        body: 'Enter its login to watch the stream. It stays in your device\'s secure storage.',
+        action: FilledButton.icon(
+          onPressed: _askPassword,
+          icon: const Icon(Icons.key_outlined),
+          label: const Text('Enter password'),
+        ),
+      );
+    }
+    if (_credentials != null) {
+      return StatusMessage(
+        icon: Icons.lock_outline,
+        iconColor: theme.colorScheme.error,
+        title: 'The camera did not let you in',
+        body: 'The password may be wrong, or the stream is down.',
+        action: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            FilledButton.icon(
+              onPressed: _askPassword,
+              icon: const Icon(Icons.key_outlined),
+              label: const Text('Change password'),
+            ),
+            tryAgain,
+          ],
+        ),
+      );
+    }
+    return StatusMessage(
+      icon: Icons.videocam_off_outlined,
+      iconColor: theme.colorScheme.error,
+      title: 'The camera did not answer',
+      body: 'No stream came from port $_port.',
+      action: tryAgain,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // A full dark theme, not copyWith: that would keep the light text colours.
@@ -110,26 +199,10 @@ class _PlayerPageState extends State<PlayerPage> {
       child: Scaffold(
         backgroundColor: Colors.black,
         extendBodyBehindAppBar: true,
-        appBar: AppBar(backgroundColor: Colors.transparent, title: Text(widget.device.address)),
+        appBar: AppBar(backgroundColor: Colors.transparent, title: Text(_host)),
         body: Center(
           child: _failed
-              ? StatusMessage(
-                  icon: _needsPassword ? Icons.lock_outline : Icons.videocam_off_outlined,
-                  iconColor: _needsPassword ? null : dark.colorScheme.error,
-                  title: _needsPassword
-                      ? 'The camera asks for a password'
-                      : 'The camera did not answer',
-                  body: _needsPassword
-                      ? 'The stream is protected. Password login is coming.'
-                      : 'No stream came from port ${widget.device.rtspPort}.',
-                  action: _needsPassword
-                      ? null
-                      : FilledButton.tonalIcon(
-                          onPressed: _open,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Try again'),
-                        ),
-                )
+              ? _failure(dark)
               : Stack(
                   alignment: Alignment.center,
                   children: [

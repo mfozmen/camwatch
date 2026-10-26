@@ -1,8 +1,10 @@
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import 'credential_store.dart';
 import 'multicast_lock.dart';
 import 'player.dart';
 
@@ -46,5 +48,25 @@ class MediaKitPlayer implements StreamPlayer {
 
   @override
   Future<void> dispose() => _player.dispose();
+}
+
+/// Logins in the OS secure store: the Android Keystore, DPAPI on Windows.
+class SecureCredentialStore implements CredentialStore {
+  const SecureCredentialStore();
+
+  static const _storage = FlutterSecureStorage();
+
+  @override
+  Future<Credentials?> read(String address) async {
+    final user = await _storage.read(key: '$address/user');
+    final password = await _storage.read(key: '$address/password');
+    return user == null || password == null ? null : Credentials(user, password);
+  }
+
+  @override
+  Future<void> write(String address, Credentials credentials) async {
+    await _storage.write(key: '$address/user', value: credentials.user);
+    await _storage.write(key: '$address/password', value: credentials.password);
+  }
 }
 // coverage:ignore-end

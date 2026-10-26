@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_player.dart';
+import 'fake_store.dart';
 
 void main() {
   final player = FakePlayer();
@@ -16,6 +17,7 @@ void main() {
             scan: scan,
             newPlayer: () => player,
             findPaths: (host, port) async => {'/': PathStatus.open},
+            store: FakeStore(),
           ),
         ),
       );

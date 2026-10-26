@@ -58,9 +58,9 @@ Future<Map<String, PathStatus>> probeStreamPaths(
   return result;
 }
 
-/// The first path in [result] that streams without a password, or null.
-String? firstOpenPath(Map<String, PathStatus> result) =>
-    result.entries.where((e) => e.value == PathStatus.open).map((e) => e.key).firstOrNull;
+/// The first path in [result] with [status], or null.
+String? firstPath(Map<String, PathStatus> result, PathStatus status) =>
+    result.entries.where((e) => e.value == status).map((e) => e.key).firstOrNull;
 
 PathStatus _status(String reply) =>
     switch (RegExp(r'^RTSP/1\.0 (\d{3})').firstMatch(reply)?.group(1)) {
