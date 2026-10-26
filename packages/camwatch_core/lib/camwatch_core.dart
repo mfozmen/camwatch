@@ -10,5 +10,6 @@ export 'src/mdns.dart';
 export 'src/port_probe.dart';
 export 'src/rtsp_paths.dart';
 export 'src/rtsp_relay.dart';
+export 'src/saved_camera.dart';
 export 'src/update.dart';
 export 'src/ws_discovery.dart';

@@ -22,6 +22,7 @@ class CamwatchApp extends StatelessWidget {
         findPaths: probeStreamPaths,
         store: SecureCredentialStore(),
         consent: SecureConsentStore.scan(),
+        saved: SecureCameraStore(),
         actions: [
           UpdateButton(
             check: checkForUpdate,

@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:camwatch/src/player_page.dart';
 import 'package:camwatch/src/scan_page.dart';
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_camera_store.dart';
 import 'fake_consent.dart';
 import 'fake_player.dart';
 import 'fake_store.dart';
@@ -18,10 +20,12 @@ class SlowConsent extends FakeConsent {
 
 void main() {
   final player = FakePlayer();
+  setUp(player.opened.clear);
   Future<void> pump(
     WidgetTester tester,
     Future<List<Device>?> Function() scan, {
     FakeConsent? consent,
+    FakeCameraStore? saved,
   }) => tester.pumpWidget(
     MaterialApp(
       home: ScanPage(
@@ -30,6 +34,7 @@ void main() {
         findPaths: (host, port) async => {'/': PathStatus.open},
         store: FakeStore(),
         consent: consent ?? FakeConsent(),
+        saved: saved ?? FakeCameraStore(),
       ),
     ),
   );
@@ -119,6 +124,89 @@ void main() {
       await tester.tap(understand);
       await tester.pumpAndSettle();
       expect(probed, isTrue);
+    });
+  });
+
+  group('saved cameras', () {
+    const camera = SavedCamera('192.168.1.6', 554);
+    final remove = find.byTooltip('Remove');
+
+    testWidgets('are listed before any scan and can be watched', (tester) async {
+      await pump(tester, () async => [], saved: FakeCameraStore(const [camera]));
+      await tester.pumpAndSettle();
+      expect(find.text('Saved cameras'), findsOneWidget);
+      expect(find.text('192.168.1.6'), findsOneWidget);
+      expect(find.text('Find the cameras on your network'), findsNothing);
+      expect(scanButton, findsOneWidget);
+      await tester.tap(find.byTooltip('Watch'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlayerPage), findsOneWidget);
+      expect(tester.widget<PlayerPage>(find.byType(PlayerPage)).device.rtspPort, 554);
+    });
+
+    testWidgets('can be removed, and put back with Undo', (tester) async {
+      final store = FakeCameraStore(const [camera]);
+      await pump(tester, () async => [], saved: store);
+      await tester.pumpAndSettle();
+      await tester.tap(remove);
+      await tester.pumpAndSettle();
+      expect(store.cameras, isEmpty);
+      expect(find.text('Find the cameras on your network'), findsOneWidget);
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(store.cameras, [camera]);
+      expect(find.text('192.168.1.6'), findsOneWidget);
+    });
+
+    testWidgets('a found device is saved from its card and unsaved again', (tester) async {
+      final store = FakeCameraStore();
+      await pump(
+        tester,
+        () async => const [
+          Device('192.168.1.6', openPorts: [554]),
+        ],
+        saved: store,
+      );
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.cameras, [camera]);
+      expect(find.byTooltip('Save'), findsNothing);
+      await tester.tap(find.byTooltip('Saved'));
+      await tester.pumpAndSettle();
+      expect(store.cameras, isEmpty);
+      expect(find.byTooltip('Save'), findsOneWidget);
+    });
+
+    testWidgets('a device without a stream cannot be saved', (tester) async {
+      await pump(
+        tester,
+        () async => const [
+          Device('192.168.1.6', openPorts: [80]),
+        ],
+      );
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Save'), findsNothing);
+    });
+
+    testWidgets('a broken store shows the guidance and saves nothing', (tester) async {
+      final store = FakeCameraStore(const [camera])..error = StateError('no store');
+      await pump(
+        tester,
+        () async => const [
+          Device('192.168.1.6', openPorts: [554]),
+        ],
+        saved: store,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Find the cameras on your network'), findsOneWidget);
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Save'), findsOneWidget);
     });
   });
 
@@ -218,6 +306,7 @@ void main() {
           findPaths: (host, port) => checking.future,
           store: FakeStore(),
           consent: FakeConsent(),
+          saved: FakeCameraStore(),
         ),
       ),
     );
@@ -246,6 +335,7 @@ void main() {
           findPaths: (host, port) async => throw StateError('down'),
           store: FakeStore(),
           consent: FakeConsent(),
+          saved: FakeCameraStore(),
         ),
       ),
     );
