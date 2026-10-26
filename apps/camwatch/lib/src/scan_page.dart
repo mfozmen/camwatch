@@ -56,9 +56,17 @@ class _ScanPageState extends State<ScanPage> {
   var _phase = _Phase.idle;
   var _devices = const <Device>[];
   var _streams = <String, ValueNotifier<Map<String, PathStatus>?>>{};
+  var _asking = false;
 
   Future<void> _scan() async {
-    if (!await _consented()) return;
+    // The store read takes a moment: a second tap meanwhile must not open a second notice.
+    if (_asking) return;
+    _asking = true;
+    try {
+      if (!await _consented()) return;
+    } finally {
+      _asking = false;
+    }
     setState(() => _phase = _Phase.scanning);
     try {
       final devices = await widget.scan();
