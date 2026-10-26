@@ -59,14 +59,7 @@ class _ScanPageState extends State<ScanPage> {
   var _asking = false;
 
   Future<void> _scan() async {
-    // The store read takes a moment: a second tap meanwhile must not open a second notice.
-    if (_asking) return;
-    _asking = true;
-    try {
-      if (!await _consented()) return;
-    } finally {
-      _asking = false;
-    }
+    if (!await _consented()) return;
     setState(() => _phase = _Phase.scanning);
     try {
       final devices = await widget.scan();
@@ -96,7 +89,19 @@ class _ScanPageState extends State<ScanPage> {
     }
   }
 
+  /// False while the notice is open or refused, and for any tap that lands
+  /// while the store is still being read: one tap, one notice.
   Future<bool> _consented() async {
+    if (_asking) return false;
+    _asking = true;
+    try {
+      return await _consentGiven();
+    } finally {
+      _asking = false;
+    }
+  }
+
+  Future<bool> _consentGiven() async {
     var given = false;
     try {
       given = await widget.consent.read();
