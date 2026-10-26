@@ -34,7 +34,7 @@ void main() {
   });
 
   group('the first scan', () {
-    final notice = find.text('Scan only networks you own');
+    final notice = find.text('Before the first scan');
     final understand = find.widgetWithText(FilledButton, 'I understand');
 
     testWidgets('asks first and probes nothing until the notice is accepted', (tester) async {
@@ -47,7 +47,7 @@ void main() {
       await tester.tap(scanButton);
       await tester.pump();
       expect(notice, findsOneWidget);
-      expect(find.textContaining('one you have permission to test'), findsOneWidget);
+      expect(find.textContaining('Scan only your own network'), findsOneWidget);
       expect(probed, isFalse);
       await tester.tap(understand);
       await tester.pumpAndSettle();

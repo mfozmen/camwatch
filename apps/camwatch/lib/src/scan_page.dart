@@ -185,11 +185,12 @@ class _Notice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       icon: const Icon(Icons.policy_outlined),
-      title: const Text('Scan only networks you own'),
+      title: const Text('Before the first scan'),
       content: const Text(
         'camwatch probes every device on the network you are connected to. '
-        'Use it on your own network, or one you have permission to test.',
+        'Scan only your own network, or one you have permission to test.',
       ),
       actions: [
         FilledButton(
