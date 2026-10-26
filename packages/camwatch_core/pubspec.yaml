@@ -1,6 +1,6 @@
 name: camwatch_core
 description: camwatch's shared core in pure Dart (no Flutter), used by every app.
-version: 0.1.0
+version: 0.2.0
 publish_to: none
 resolution: workspace
 
