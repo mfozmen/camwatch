@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_player.dart';
+import 'fake_store.dart';
 
 Future<Map<String, PathStatus>> rootOpen(String host, int port) async => {'/': PathStatus.open};
 
@@ -13,11 +14,20 @@ void main() {
   const device = Device('192.168.1.10', openPorts: [80, 554]);
   final connecting = find.text('Connecting…');
 
-  Future<FakePlayer> pump(WidgetTester tester, {FindPaths findPaths = rootOpen}) async {
+  Future<FakePlayer> pump(
+    WidgetTester tester, {
+    FindPaths findPaths = rootOpen,
+    FakeStore? store,
+  }) async {
     final player = FakePlayer();
     await tester.pumpWidget(
       MaterialApp(
-        home: PlayerPage(device: device, player: player, findPaths: findPaths),
+        home: PlayerPage(
+          device: device,
+          player: player,
+          findPaths: findPaths,
+          store: store ?? FakeStore(),
+        ),
       ),
     );
     await tester.pump();
@@ -37,14 +47,103 @@ void main() {
     expect(player.opened, ['rtsp://192.168.1.10:554/live']);
   });
 
-  testWidgets('says so when every path wants a password', (tester) async {
-    final player = await pump(
-      tester,
-      findPaths: (host, port) async => {'/': PathStatus.needsAuth, '/live': PathStatus.error},
-    );
+  Future<Map<String, PathStatus>> protected(String host, int port) async => {
+    '/': PathStatus.needsAuth,
+    '/live': PathStatus.error,
+    '/h264': PathStatus.needsAuth,
+  };
+  final enterPassword = find.text('Enter password');
+
+  Future<void> login(WidgetTester tester, String user, String password) async {
+    await tester.enterText(find.widgetWithText(TextField, 'Username'), user);
+    await tester.enterText(find.widgetWithText(TextField, 'Password'), password);
+    await tester.tap(find.text('Watch'));
+    // Not pumpAndSettle: the connecting spinner never settles.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+  }
+
+  testWidgets('asks for a password when every path wants one', (tester) async {
+    final player = await pump(tester, findPaths: protected);
     expect(player.opened, isEmpty);
     expect(find.text('The camera asks for a password'), findsOneWidget);
     expect(find.text('Try again'), findsNothing);
+    expect(enterPassword, findsOneWidget);
+  });
+
+  testWidgets('plays the first protected path with the typed password and keeps it', (
+    tester,
+  ) async {
+    final store = FakeStore();
+    final player = await pump(tester, findPaths: protected, store: store);
+    await tester.tap(enterPassword);
+    await tester.pumpAndSettle();
+    await login(tester, 'admin', 'secret');
+    expect(store.saved, {'192.168.1.10': const Credentials('admin', 'secret')});
+    expect(player.opened, ['rtsp://admin:secret@192.168.1.10:554/']);
+    expect(connecting, findsOneWidget);
+    expect(find.textContaining('secret'), findsNothing);
+  });
+
+  testWidgets('cancelling the password dialog changes nothing', (tester) async {
+    final store = FakeStore();
+    final player = await pump(tester, findPaths: protected, store: store);
+    await tester.tap(enterPassword);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(store.saved, isEmpty);
+    expect(player.opened, isEmpty);
+    expect(enterPassword, findsOneWidget);
+  });
+
+  testWidgets('uses the kept password without asking', (tester) async {
+    final store = FakeStore()..saved['192.168.1.10'] = const Credentials('admin', 'secret');
+    final player = await pump(tester, findPaths: protected, store: store);
+    expect(player.opened, ['rtsp://admin:secret@192.168.1.10:554/']);
+    expect(find.byType(TextField), findsNothing);
+    expect(connecting, findsOneWidget);
+  });
+
+  testWidgets('an open path wins over a kept password', (tester) async {
+    final store = FakeStore()..saved['192.168.1.10'] = const Credentials('admin', 'secret');
+    final player = await pump(
+      tester,
+      findPaths: (host, port) async => {'/': PathStatus.needsAuth, '/live': PathStatus.open},
+      store: store,
+    );
+    expect(player.opened, ['rtsp://192.168.1.10:554/live']);
+  });
+
+  testWidgets('a broken store is the same as an empty one', (tester) async {
+    final store = FakeStore()..error = StateError('keystore');
+    final player = await pump(tester, findPaths: protected, store: store);
+    expect(player.opened, isEmpty);
+    expect(enterPassword, findsOneWidget);
+    await tester.tap(enterPassword);
+    await tester.pumpAndSettle();
+    await login(tester, 'admin', 'secret');
+    expect(player.opened, ['rtsp://admin:secret@192.168.1.10:554/']);
+  });
+
+  testWidgets('a failure with a password offers to change it, showing no secret', (tester) async {
+    final store = FakeStore()..saved['192.168.1.10'] = const Credentials('admin', 'secret');
+    final player = await pump(tester, findPaths: protected, store: store);
+    player.fail('Failed to open rtsp://admin:secret@192.168.1.10:554/');
+    await tester.pump(errorGrace);
+    expect(find.text('The camera did not let you in'), findsOneWidget);
+    expect(find.textContaining('secret'), findsNothing);
+    expect(find.textContaining('rtsp://'), findsNothing);
+    expect(find.text('Try again'), findsOneWidget);
+    await tester.tap(find.text('Change password'));
+    await tester.pumpAndSettle();
+    final username = find.widgetWithText(TextField, 'Username');
+    expect(tester.widget<TextField>(username).controller!.text, 'admin');
+    await login(tester, 'admin', 'better');
+    expect(store.saved['192.168.1.10'], const Credentials('admin', 'better'));
+    expect(player.opened.last, 'rtsp://admin:better@192.168.1.10:554/');
+    expect(connecting, findsOneWidget);
   });
 
   testWidgets('the message stays readable when the app theme is light', (tester) async {
@@ -56,6 +155,7 @@ void main() {
           device: device,
           player: player,
           findPaths: (host, port) async => {'/': PathStatus.needsAuth},
+          store: FakeStore(),
         ),
       ),
     );
@@ -147,7 +247,7 @@ void main() {
     final player = FakePlayer()..opening = Completer<void>();
     await tester.pumpWidget(
       MaterialApp(
-        home: PlayerPage(device: device, player: player, findPaths: rootOpen),
+        home: PlayerPage(device: device, player: player, findPaths: rootOpen, store: FakeStore()),
       ),
     );
     player.opening!.completeError(StateError('no'));
@@ -159,7 +259,7 @@ void main() {
     final player = FakePlayer()..opening = Completer<void>();
     await tester.pumpWidget(
       MaterialApp(
-        home: PlayerPage(device: device, player: player, findPaths: rootOpen),
+        home: PlayerPage(device: device, player: player, findPaths: rootOpen, store: FakeStore()),
       ),
     );
     await tester.pumpWidget(const SizedBox());

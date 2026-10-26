@@ -19,6 +19,7 @@ class CamwatchApp extends StatelessWidget {
         scan: scanLan,
         newPlayer: MediaKitPlayer.new,
         findPaths: probeStreamPaths,
+        store: SecureCredentialStore(),
       ),
     );
   }

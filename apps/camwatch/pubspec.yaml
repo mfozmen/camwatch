@@ -12,6 +12,7 @@ dependencies:
     path: ../../packages/camwatch_core
   flutter:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
   media_kit: ^1.2.6
   media_kit_libs_video: ^1.0.7
   media_kit_video: ^2.0.1

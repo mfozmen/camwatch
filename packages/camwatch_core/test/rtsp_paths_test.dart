@@ -27,7 +27,7 @@ void main() {
           '/h264': PathStatus.missing,
           '/live': PathStatus.open,
         });
-        expect(firstOpenPath(result), '/live');
+        expect(firstPath(result, PathStatus.open), '/live');
       },
     );
 
@@ -59,7 +59,7 @@ void main() {
             : throw const SocketException('reset'),
       );
       expect(result, {'/': PathStatus.error, '/live': PathStatus.error});
-      expect(firstOpenPath(result), isNull);
+      expect(firstPath(result, PathStatus.open), isNull);
     });
 
     test('never probes outside the local network', () async {

@@ -1,8 +1,10 @@
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import 'credential_store.dart';
 import 'multicast_lock.dart';
 import 'player.dart';
 
@@ -26,14 +28,20 @@ class MediaKitPlayer implements StreamPlayer {
     // SDP media address off the LAN is never dialled; no copy of the stream on disk.
     native.setProperty('rtsp-transport', 'tcp');
     native.setProperty('cache-on-disk', 'no');
+    _native = native;
     _controller = VideoController(_player);
   }
 
   late final Player _player;
+  late final NativePlayer _native;
   late final VideoController _controller;
 
+  // Not Player.open: it writes the URL, password included, to a playlist file on disk.
   @override
-  Future<void> open(String url) => _player.open(Media(url));
+  Future<void> open(String url) async {
+    await _native.command(['loadfile', url, 'replace']);
+    await _player.play();
+  }
 
   @override
   Stream<String> get errors => _player.stream.error;
@@ -46,5 +54,26 @@ class MediaKitPlayer implements StreamPlayer {
 
   @override
   Future<void> dispose() => _player.dispose();
+}
+
+/// Logins in the OS secure store: the Android Keystore, DPAPI on Windows.
+class SecureCredentialStore implements CredentialStore {
+  const SecureCredentialStore();
+
+  // Keys hold '/': the Windows Credential Manager fallback would reject them, keep it off.
+  static const _storage = FlutterSecureStorage();
+
+  @override
+  Future<Credentials?> read(String address) async {
+    final user = await _storage.read(key: '$address/user');
+    final password = await _storage.read(key: '$address/password');
+    return user == null || password == null ? null : Credentials(user, password);
+  }
+
+  @override
+  Future<void> write(String address, Credentials credentials) async {
+    await _storage.write(key: '$address/user', value: credentials.user);
+    await _storage.write(key: '$address/password', value: credentials.password);
+  }
 }
 // coverage:ignore-end
