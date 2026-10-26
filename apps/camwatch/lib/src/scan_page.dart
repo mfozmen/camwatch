@@ -465,19 +465,30 @@ class _DeviceCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
+                                  Text(
+                                    line.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: text.bodyMedium?.copyWith(
+                                      color: line.color,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
                                   Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
                                         child: Text(
-                                          line.label,
+                                          device.openPorts.map(portLabel).join(' · '),
                                           style: text.bodyMedium?.copyWith(
-                                            color: line.color,
-                                            fontWeight: FontWeight.w500,
+                                            color: colors.onSurfaceVariant,
                                           ),
                                         ),
                                       ),
                                       if (device.onvifAddress != null)
                                         Container(
+                                          margin: const EdgeInsets.only(left: 8),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,
                                             vertical: 4,
@@ -494,13 +505,6 @@ class _DeviceCard extends StatelessWidget {
                                           ),
                                         ),
                                     ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    device.openPorts.map(portLabel).join(' · '),
-                                    style: text.bodyMedium?.copyWith(
-                                      color: colors.onSurfaceVariant,
-                                    ),
                                   ),
                                 ],
                               ),
