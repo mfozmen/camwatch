@@ -211,6 +211,9 @@ void main() {
         greaterThanOrEqualTo(box.bottom),
         reason: 'the badge sits under the address',
       );
+      final grade = tester.getRect(find.textContaining('Exposed'));
+      expect(badge.top, greaterThanOrEqualTo(grade.bottom), reason: 'and under the grade line');
+      expect(grade.height, lessThan(30), reason: 'the grade line never wraps');
     });
 
     testWidgets('a device without a stream cannot be saved', (tester) async {
