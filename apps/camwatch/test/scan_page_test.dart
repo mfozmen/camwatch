@@ -135,6 +135,7 @@ void main() {
       await pump(tester, () async => [], saved: FakeCameraStore(const [camera]));
       await tester.pumpAndSettle();
       expect(find.text('Saved cameras'), findsOneWidget);
+      expect(find.text('Kept from earlier scans. Scan to check them again.'), findsOneWidget);
       expect(find.text('192.168.1.6'), findsOneWidget);
       expect(find.text('Find the cameras on your network'), findsNothing);
       expect(scanButton, findsOneWidget);
@@ -142,6 +143,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(PlayerPage), findsOneWidget);
       expect(tester.widget<PlayerPage>(find.byType(PlayerPage)).device.rtspPort, 554);
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('192.168.1.6'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlayerPage), findsOneWidget, reason: 'the card itself watches');
     });
 
     testWidgets('can be removed, and put back with Undo', (tester) async {
@@ -151,6 +157,7 @@ void main() {
       await tester.tap(remove);
       await tester.pumpAndSettle();
       expect(store.cameras, isEmpty);
+      expect(find.text('Removed 192.168.1.6 · RTSP 554'), findsOneWidget);
       expect(find.text('Find the cameras on your network'), findsOneWidget);
       await tester.tap(find.text('Undo'));
       await tester.pumpAndSettle();
@@ -169,14 +176,14 @@ void main() {
       );
       await tester.tap(scanButton);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Save'));
+      await tester.tap(find.byTooltip('Save camera'));
       await tester.pumpAndSettle();
       expect(store.cameras, [camera]);
-      expect(find.byTooltip('Save'), findsNothing);
-      await tester.tap(find.byTooltip('Saved'));
+      expect(find.byTooltip('Save camera'), findsNothing);
+      await tester.tap(find.byTooltip('Remove from saved'));
       await tester.pumpAndSettle();
       expect(store.cameras, isEmpty);
-      expect(find.byTooltip('Save'), findsOneWidget);
+      expect(find.byTooltip('Save camera'), findsOneWidget);
     });
 
     testWidgets('a device without a stream cannot be saved', (tester) async {
@@ -188,7 +195,7 @@ void main() {
       );
       await tester.tap(scanButton);
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Save'), findsNothing);
+      expect(find.byTooltip('Save camera'), findsNothing);
     });
 
     testWidgets('a broken store shows the guidance and saves nothing', (tester) async {
@@ -204,9 +211,9 @@ void main() {
       expect(find.text('Find the cameras on your network'), findsOneWidget);
       await tester.tap(scanButton);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Save'));
+      await tester.tap(find.byTooltip('Save camera'));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Save'), findsOneWidget);
+      expect(find.byTooltip('Save camera'), findsOneWidget);
     });
   });
 

@@ -100,7 +100,7 @@ class _ScanPageState extends State<ScanPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Removed ${camera.address}'),
+        content: Text('Removed ${camera.address} · ${portLabel(camera.port)}'),
         action: SnackBarAction(label: 'Undo', onPressed: () => _keep(before)),
       ),
     );
@@ -268,15 +268,26 @@ class _SavedList extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Text(
-            'Saved cameras',
-            style: text.titleSmall?.copyWith(color: colors.onSurfaceVariant),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Saved cameras',
+                style: text.titleSmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Kept from earlier scans. Scan to check them again.',
+                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+            ],
           ),
         ),
         for (final camera in cameras)
           Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
+              onTap: () => onWatch(camera),
               contentPadding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
               leading: Icon(Icons.videocam_outlined, color: colors.primary),
               title: Text(
@@ -294,6 +305,7 @@ class _SavedList extends StatelessWidget {
                     tooltip: 'Watch',
                     icon: Icon(Icons.play_circle_outline, color: colors.primary),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => onRemove(camera),
                     tooltip: 'Remove',
@@ -507,12 +519,13 @@ class _DeviceCard extends StatelessWidget {
                   if (playable) ...[
                     IconButton(
                       onPressed: onSave,
-                      tooltip: saved ? 'Saved' : 'Save',
+                      tooltip: saved ? 'Remove from saved' : 'Save camera',
                       icon: Icon(
                         saved ? Icons.bookmark : Icons.bookmark_outline,
-                        color: colors.primary,
+                        color: saved ? colors.primary : colors.onSurfaceVariant,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     IconButton(
                       onPressed: onWatch,
                       tooltip: 'Watch',
