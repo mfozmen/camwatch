@@ -36,6 +36,28 @@ const _telnet = Finding(
       'Turn it off, or update the firmware if there is no switch.',
 );
 
+const _xmeye = Finding(
+  Grade.red,
+  'The XMeye DVR port is open',
+  'Port 34567 has built-in accounts that botnets log into. Put the device on its '
+      'own network segment, or replace it: firmware rarely closes this.',
+);
+
+const _ssh = Finding(
+  Grade.amber,
+  'SSH is open',
+  'Many cameras ship SSH with a root password you cannot change. Turn it off, '
+      'or make sure the password is yours.',
+);
+
+const _dahua = Finding(
+  Grade.amber,
+  'The Dahua protocol port is open',
+  'Port 37777 is a private control channel that old firmware leaves without a '
+      'login. Keep the firmware current; most Dahua devices cannot turn this port off, '
+      'so keep the camera off any network guests use.',
+);
+
 const _plainWeb = Finding(
   Grade.amber,
   'The web page has no HTTPS',
@@ -73,9 +95,12 @@ List<Finding> findings(Device device, Map<String, PathStatus> streams) {
   return [
     if (streams.containsValue(PathStatus.open)) _openStream,
     if (ports.contains(23)) _telnet,
+    if (ports.contains(34567)) _xmeye,
     if (hasWeb && !ports.contains(443)) _plainWeb,
+    if (ports.contains(22)) _ssh,
     if (ports.contains(21)) _ftp,
     if (ports.contains(8000)) _sdk,
+    if (ports.contains(37777)) _dahua,
     if (device.rtspPort != null && streams.isEmpty) uncheckedStream,
   ];
 }

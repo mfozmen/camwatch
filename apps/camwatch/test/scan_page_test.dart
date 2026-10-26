@@ -38,6 +38,7 @@ void main() {
 
   test('portLabel names the graded ports too', () {
     expect([21, 23, 443, 9].map(portLabel), ['FTP 21', 'Telnet 23', 'HTTPS 443', 'Port 9']);
+    expect([22, 37777, 34567].map(portLabel), ['SSH 22', 'Dahua 37777', 'XMeye 34567']);
   });
 
   group('the first scan', () {
