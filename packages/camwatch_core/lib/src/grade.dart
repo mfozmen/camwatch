@@ -54,7 +54,8 @@ const _dahua = Finding(
   Grade.amber,
   'The Dahua protocol port is open',
   'Port 37777 is a private control channel that old firmware leaves without a '
-      'login. Keep the firmware current and turn it off unless a recorder needs it.',
+      'login. Keep the firmware current; most Dahua devices cannot turn this port off, '
+      'so keep the camera off any network guests use.',
 );
 
 const _plainWeb = Finding(
