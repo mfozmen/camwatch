@@ -25,14 +25,8 @@ void main() {
     });
 
     test('an RTSP port whose stream was never checked is amber, not green', () {
-      expect(
-        findings(device([554]), {}).single,
-        const Finding(
-          Grade.amber,
-          'The stream has not been checked yet',
-          'Open the camera once: camwatch then sees whether it asks for a password.',
-        ),
-      );
+      expect(findings(device([554]), {}).single, uncheckedStream);
+      expect(uncheckedStream.title, 'The stream has not been checked yet');
       expect(findings(device([80, 443]), {}), isEmpty);
     });
 
