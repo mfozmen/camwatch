@@ -9,6 +9,13 @@ import 'fake_consent.dart';
 import 'fake_player.dart';
 import 'fake_store.dart';
 
+class SlowConsent extends FakeConsent {
+  SlowConsent() : super(given: false);
+
+  @override
+  Future<bool> read() => Future.delayed(const Duration(milliseconds: 500), () => given);
+}
+
 void main() {
   final player = FakePlayer();
   Future<void> pump(
@@ -71,6 +78,19 @@ void main() {
       expect(probed, isFalse);
       expect(consent.given, isFalse);
       expect(scanButton, findsOneWidget);
+    });
+
+    testWidgets('two taps while the store is slow open one notice', (tester) async {
+      final consent = SlowConsent();
+      await pump(tester, () async => const [], consent: consent);
+      await tester.tap(scanButton);
+      await tester.pump();
+      await tester.tap(scanButton);
+      await tester.pump(const Duration(seconds: 1));
+      expect(notice, findsOneWidget);
+      await tester.tap(understand);
+      await tester.pumpAndSettle();
+      expect(notice, findsNothing);
     });
 
     testWidgets('a remembered answer is not asked again', (tester) async {
