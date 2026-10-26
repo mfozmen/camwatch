@@ -56,7 +56,7 @@ void main() {
   testWidgets('a green device says there is nothing to fix and when to look again', (tester) async {
     await pump(tester, const Device('192.168.1.10', openPorts: [80, 443]), ValueNotifier(const {}));
     expect(find.text('No issues found'), findsOneWidget);
-    expect(find.text('Nothing to fix on its open ports and stream.'), findsOneWidget);
+    expect(find.text('Nothing to fix among what camwatch checked.'), findsOneWidget);
     expect(find.textContaining('Grades are only as current as the last scan'), findsOneWidget);
     expect(find.byType(ListTile), findsNothing);
   });
@@ -67,6 +67,7 @@ void main() {
     final streams = ValueNotifier<Map<String, PathStatus>?>(null);
     await pump(tester, const Device('192.168.1.10', openPorts: [23, 554]), streams);
     expect(find.text('Checking stream…'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('Exposed'), findsNothing);
     expect(find.text('No issues found'), findsNothing);
     expect(find.text('Telnet is open'), findsOneWidget);
@@ -74,6 +75,7 @@ void main() {
     streams.value = {'/': PathStatus.open};
     await tester.pump();
     expect(find.text('Checking stream…'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('Exposed'), findsOneWidget);
     expect(find.text('Anyone on the network can watch the stream'), findsOneWidget);
   });

@@ -16,7 +16,7 @@ extension GradeLook on Grade {
   String get meaning => switch (this) {
     Grade.red => 'Anyone on your network can get in. Fix the red items first.',
     Grade.amber => 'Easier to break into than it needs to be.',
-    Grade.green => 'Nothing to fix on its open ports and stream.',
+    Grade.green => 'Nothing to fix among what camwatch checked.',
   };
 
   IconData get icon => switch (this) {
@@ -32,7 +32,7 @@ extension GradeLook on Grade {
     return switch (this) {
       Grade.red => colors.error,
       Grade.amber => dark ? const Color(0xFFFBBF24) : const Color(0xFF92400E),
-      Grade.green => dark ? const Color(0xFF81C995) : const Color(0xFF2E7D32),
+      Grade.green => dark ? const Color(0xFF81C995) : const Color(0xFF1B5E20),
     };
   }
 }
@@ -55,9 +55,8 @@ extension GradeLook on Grade {
   }
   final grade = gradeOf(found);
   final count = found.length;
-  final label = grade == Grade.green
-      ? grade.label
-      : '${grade.label} · $count ${count == 1 ? 'finding' : 'findings'}';
+  final noun = count == 1 ? 'finding' : 'findings';
+  final label = grade == Grade.green ? grade.label : '${grade.label} · $count $noun';
   return (icon: grade.icon, label: label, color: grade.color(colors), found: found);
 }
 
@@ -80,7 +79,12 @@ class ReportPage extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 600),
           child: ValueListenableBuilder(
             valueListenable: streams,
-            builder: (context, streams, _) => _Report(device, streams),
+            builder: (context, streams, _) => Column(
+              children: [
+                if (streams == null) const LinearProgressIndicator(),
+                Expanded(child: _Report(device, streams)),
+              ],
+            ),
           ),
         ),
       ),

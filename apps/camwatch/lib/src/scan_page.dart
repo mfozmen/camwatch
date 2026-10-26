@@ -225,26 +225,36 @@ class _DeviceCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
-      child: Semantics(
-        onTapHint: 'open the security report',
-        child: InkWell(
-          onTap: onReport,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-            child: ValueListenableBuilder(
-              valueListenable: streams,
-              builder: (context, streams, _) {
-                final line = gradeLine(device, streams, colors);
-                return Row(
-                  children: [
-                    Expanded(
-                      child: MergeSemantics(
+      child: InkWell(
+        onTap: onReport,
+        excludeFromSemantics: true,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          child: ValueListenableBuilder(
+            valueListenable: streams,
+            builder: (context, streams, _) {
+              final line = gradeLine(device, streams, colors);
+              return Row(
+                children: [
+                  Expanded(
+                    // The hint rides the merged node that carries the tap; the watch
+                    // button stays outside it.
+                    child: MergeSemantics(
+                      child: Semantics(
+                        button: true,
+                        onTap: onReport,
+                        onTapHint: 'open the security report',
                         child: Row(
                           children: [
                             CircleAvatar(
                               backgroundColor: line.color.withValues(alpha: 0.15),
                               foregroundColor: line.color,
-                              child: Icon(line.icon),
+                              child: streams == null
+                                  ? const SizedBox.square(
+                                      dimension: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : Icon(line.icon),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -310,16 +320,16 @@ class _DeviceCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (playable)
-                      IconButton(
-                        onPressed: onWatch,
-                        tooltip: 'Watch',
-                        icon: Icon(Icons.play_circle_outline, color: colors.primary),
-                      ),
-                  ],
-                );
-              },
-            ),
+                  ),
+                  if (playable)
+                    IconButton(
+                      onPressed: onWatch,
+                      tooltip: 'Watch',
+                      icon: Icon(Icons.play_circle_outline, color: colors.primary),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),

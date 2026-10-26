@@ -129,11 +129,13 @@ void main() {
     await tester.tap(scanButton);
     await tester.pump();
     expect(find.text('Checking stream…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('At risk · 1 finding'), findsOneWidget);
     expect(find.text('No issues found'), findsOneWidget);
     checking.complete({'/': PathStatus.open});
     await tester.pump();
     expect(find.text('Checking stream…'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Exposed · 2 findings'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('192.168.1.10.*Exposed', dotAll: true)), findsOneWidget);
   });
@@ -171,6 +173,10 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('192.168.1.20.*No stream', dotAll: true)), findsOneWidget);
     // Its own node: a merged card would leave screen readers one tap for two actions.
     expect(tester.getSemantics(find.byTooltip('Watch')).label, isNot(contains('192.168')));
+    expect(
+      tester.getSemantics(find.text('192.168.1.20')).hintOverrides?.onTapHint,
+      'open the security report',
+    );
     await tester.tap(find.text('192.168.1.20'));
     await tester.pumpAndSettle();
     expect(find.text('The web page has no HTTPS'), findsOneWidget);
