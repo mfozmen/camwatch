@@ -51,6 +51,17 @@ through a relay inside the app: a camera that answers with a redirect is cut
 off there, so the stream library never sees the new address, which could be
 outside your network, and never follows it.
 
+Until camwatch is in the app stores, new versions come from the
+[releases page](https://github.com/mfozmen/camwatch/releases). The **Check for
+updates** button at the top asks github.com for the newest release; the first
+tap explains that this is the only request that ever leaves your network and
+asks before sending it. Once accepted, the app also checks quietly each time it
+starts and shows a banner when a newer version is out: **Download** opens the
+build for your device (the APK for your phone's processor, the Windows setup)
+in your browser. Install it over the old one. Nothing about you or your cameras
+is sent; **Not now** keeps the app fully offline, and **Stop checking** on a
+later check turns it off again.
+
 ## Only scan networks you own
 
 camwatch probes the devices on the network you are connected to. Use it on your

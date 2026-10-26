@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'src/native.dart';
 import 'src/scan_page.dart';
+import 'src/update_button.dart';
 
 void main() => runApp(const CamwatchApp());
 
@@ -20,7 +21,14 @@ class CamwatchApp extends StatelessWidget {
         newPlayer: MediaKitPlayer.new,
         findPaths: probeStreamPaths,
         store: SecureCredentialStore(),
-        consent: SecureConsentStore(),
+        consent: SecureConsentStore.scan(),
+        actions: [
+          UpdateButton(
+            check: checkForUpdate,
+            consent: SecureConsentStore.updates(),
+            open: openInBrowser,
+          ),
+        ],
       ),
     );
   }

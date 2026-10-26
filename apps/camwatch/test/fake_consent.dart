@@ -16,4 +16,7 @@ class FakeConsent implements ConsentStore {
 
   @override
   Future<void> write() async => given = true;
+
+  @override
+  Future<void> clear() async => given = false;
 }
