@@ -3,6 +3,7 @@ library;
 
 export 'src/credentials.dart';
 export 'src/discover.dart';
+export 'src/grade.dart';
 export 'src/interfaces.dart';
 export 'src/lan.dart';
 export 'src/port_probe.dart';

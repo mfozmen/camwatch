@@ -14,7 +14,7 @@ void main() {
     test('reports the open ports per host, sorted, and drops silent hosts', () async {
       final result = await probePorts(
         ['192.168.1.10', '192.168.1.11', '192.168.1.12'],
-        ports: [8554, 80, 554],
+        [8554, 80, 554],
         connect: fake({('192.168.1.10', 554), ('192.168.1.10', 80), ('192.168.1.12', 8554)}),
       );
       expect(result, {
@@ -27,7 +27,7 @@ void main() {
       final tried = <String>[];
       await probePorts(
         ['8.8.8.8', '192.168.1.10'],
-        ports: [554],
+        [554],
         connect: (host, port, timeout) async => tried.add(host),
       );
       expect(tried, ['192.168.1.10']);
@@ -37,7 +37,7 @@ void main() {
       var inFlight = 0, peak = 0;
       await probePorts(
         [for (var i = 1; i < 50; i++) '10.0.0.$i'],
-        ports: [80, 554],
+        [80, 554],
         concurrency: 8,
         connect: (host, port, timeout) async {
           inFlight++;
@@ -53,7 +53,7 @@ void main() {
       final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final closed = Completer<void>();
       server.listen((socket) => socket.listen(null, onDone: closed.complete));
-      final result = await probePorts(['127.0.0.1'], ports: [server.port, 1]);
+      final result = await probePorts(['127.0.0.1'], [server.port, 1]);
       await closed.future.timeout(const Duration(seconds: 5));
       await server.close();
       expect(result, {

@@ -7,7 +7,16 @@ import 'player.dart';
 import 'player_page.dart';
 import 'status_message.dart';
 
-const _portNames = {80: 'HTTP', 8080: 'HTTP', 554: 'RTSP', 8554: 'RTSP', 8000: 'SDK'};
+const _portNames = {
+  21: 'FTP',
+  23: 'Telnet',
+  80: 'HTTP',
+  443: 'HTTPS',
+  554: 'RTSP',
+  8000: 'SDK',
+  8080: 'HTTP',
+  8554: 'RTSP',
+};
 
 /// A port number as a person reads it on a card: "RTSP 554".
 String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';

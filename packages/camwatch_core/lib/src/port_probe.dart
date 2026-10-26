@@ -10,13 +10,17 @@ typedef Connector = Future<void> Function(String host, int port, Duration timeou
 /// and the Hikvision/Dahua SDK port (8000).
 const cameraPorts = [80, 554, 8000, 8080, 8554];
 
-/// The open [ports] of each of [hosts], sorted; hosts with no open port are
-/// left out. At most [concurrency] connections are in flight at once and
+/// The ports the grade looks at: FTP, telnet and HTTPS. Probed on found
+/// devices only, so the subnet scan stays as short as it is.
+const gradePorts = [21, 23, 443];
+
+/// The open ones of [ports] on each of [hosts], sorted; hosts with none open
+/// are left out. At most [concurrency] connections are in flight at once and
 /// each waits at most [timeout]. Hosts outside the local network are never
 /// contacted.
 Future<Map<String, List<int>>> probePorts(
-  Iterable<String> hosts, {
-  Iterable<int> ports = cameraPorts,
+  Iterable<String> hosts,
+  Iterable<int> ports, {
   Connector connect = _tcpConnect,
   Duration timeout = const Duration(milliseconds: 500),
   int concurrency = 128,
