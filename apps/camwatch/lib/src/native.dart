@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import 'consent_store.dart';
 import 'credential_store.dart';
 import 'multicast_lock.dart';
 import 'player.dart';
@@ -54,6 +55,20 @@ class MediaKitPlayer implements StreamPlayer {
 
   @override
   Future<void> dispose() => _player.dispose();
+}
+
+/// The accepted notice, in the same store as the logins.
+class SecureConsentStore implements ConsentStore {
+  const SecureConsentStore();
+
+  static const _storage = FlutterSecureStorage();
+  static const _key = 'consent/scan';
+
+  @override
+  Future<bool> read() async => await _storage.read(key: _key) == 'yes';
+
+  @override
+  Future<void> write() => _storage.write(key: _key, value: 'yes');
 }
 
 /// Logins in the OS secure store: the Android Keystore, DPAPI on Windows.

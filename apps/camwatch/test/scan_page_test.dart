@@ -5,27 +5,100 @@ import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_consent.dart';
 import 'fake_player.dart';
 import 'fake_store.dart';
 
 void main() {
   final player = FakePlayer();
-  Future<void> pump(WidgetTester tester, Future<List<Device>?> Function() scan) =>
-      tester.pumpWidget(
-        MaterialApp(
-          home: ScanPage(
-            scan: scan,
-            newPlayer: () => player,
-            findPaths: (host, port) async => {'/': PathStatus.open},
-            store: FakeStore(),
-          ),
-        ),
-      );
+  Future<void> pump(
+    WidgetTester tester,
+    Future<List<Device>?> Function() scan, {
+    FakeConsent? consent,
+  }) => tester.pumpWidget(
+    MaterialApp(
+      home: ScanPage(
+        scan: scan,
+        newPlayer: () => player,
+        findPaths: (host, port) async => {'/': PathStatus.open},
+        store: FakeStore(),
+        consent: consent ?? FakeConsent(),
+      ),
+    ),
+  );
 
   final scanButton = find.widgetWithText(FloatingActionButton, 'Scan network');
 
   test('portLabel names the graded ports too', () {
     expect([21, 23, 443, 9].map(portLabel), ['FTP 21', 'Telnet 23', 'HTTPS 443', 'Port 9']);
+  });
+
+  group('the first scan', () {
+    final notice = find.text('Scan only networks you own');
+    final understand = find.widgetWithText(FilledButton, 'I understand');
+
+    testWidgets('asks first and probes nothing until the notice is accepted', (tester) async {
+      var probed = false;
+      final consent = FakeConsent(given: false);
+      await pump(tester, () async {
+        probed = true;
+        return const [];
+      }, consent: consent);
+      await tester.tap(scanButton);
+      await tester.pump();
+      expect(notice, findsOneWidget);
+      expect(find.textContaining('one you have permission to test'), findsOneWidget);
+      expect(probed, isFalse);
+      await tester.tap(understand);
+      await tester.pumpAndSettle();
+      expect(notice, findsNothing);
+      expect(probed, isTrue);
+      expect(consent.given, isTrue);
+    });
+
+    testWidgets('a dismissed notice scans nothing and is asked again', (tester) async {
+      var probed = false;
+      final consent = FakeConsent(given: false);
+      await pump(tester, () async {
+        probed = true;
+        return const [];
+      }, consent: consent);
+      await tester.tap(scanButton);
+      await tester.pump();
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      expect(notice, findsNothing);
+      expect(probed, isFalse);
+      expect(consent.given, isFalse);
+      expect(scanButton, findsOneWidget);
+    });
+
+    testWidgets('a remembered answer is not asked again', (tester) async {
+      await pump(
+        tester,
+        () => Completer<List<Device>?>().future,
+        consent: FakeConsent(given: true),
+      );
+      await tester.tap(scanButton);
+      await tester.pump();
+      await tester.pump();
+      expect(notice, findsNothing);
+      expect(find.text('Scanning…'), findsOneWidget);
+    });
+
+    testWidgets('a broken store asks every time and still scans', (tester) async {
+      var probed = false;
+      await pump(tester, () async {
+        probed = true;
+        return const [];
+      }, consent: FakeConsent(given: true)..error = StateError('no store'));
+      await tester.tap(scanButton);
+      await tester.pump();
+      expect(notice, findsOneWidget);
+      await tester.tap(understand);
+      await tester.pumpAndSettle();
+      expect(probed, isTrue);
+    });
   });
 
   testWidgets('starts with guidance and a scan button', (tester) async {
@@ -123,6 +196,7 @@ void main() {
           newPlayer: () => player,
           findPaths: (host, port) => checking.future,
           store: FakeStore(),
+          consent: FakeConsent(),
         ),
       ),
     );
@@ -150,6 +224,7 @@ void main() {
           newPlayer: () => player,
           findPaths: (host, port) async => throw StateError('down'),
           store: FakeStore(),
+          consent: FakeConsent(),
         ),
       ),
     );
