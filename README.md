@@ -39,9 +39,9 @@ device it found with its open ports and an **ONVIF** badge when the camera
 answered. A scan takes a few seconds. Tap a device with an RTSP port to
 watch its stream: camwatch tries the common stream paths and plays the first
 one that needs no password. When every path asks for one, enter the camera's
-username and password; they go into your device's secure storage (the Android
-Keystore, DPAPI on Windows) and are used again the next time, never written to
-a file or a log.
+username and password. They go into your device's secure storage (the Android
+Keystore, DPAPI on Windows), tied to that address, and are used again the next
+time; they are never written to a file or a log.
 
 ## Only scan networks you own
 

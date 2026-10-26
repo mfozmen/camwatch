@@ -35,34 +35,43 @@ class _CredentialsDialogState extends State<_CredentialsDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Camera password'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _user,
-            autofocus: true,
-            autofillHints: const [AutofillHints.username],
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(labelText: 'Username'),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _password,
-            obscureText: _hidden,
-            autofillHints: const [AutofillHints.password],
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
-            decoration: InputDecoration(
-              labelText: 'Password',
-              suffixIcon: IconButton(
-                tooltip: _hidden ? 'Show password' : 'Hide password',
-                icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _hidden = !_hidden),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _user,
+              autofocus: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.username],
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Username'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _password,
+              obscureText: _hidden,
+              autocorrect: false,
+              enableSuggestions: false,
+              // Shown, the text would otherwise be a plain field the keyboard may learn from.
+              keyboardType: _hidden ? TextInputType.text : TextInputType.visiblePassword,
+              autofillHints: const [AutofillHints.password],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(
+                labelText: 'Password',
+                suffixIcon: IconButton(
+                  tooltip: _hidden ? 'Show password' : 'Hide password',
+                  icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _hidden = !_hidden),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),

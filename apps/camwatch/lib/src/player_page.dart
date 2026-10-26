@@ -152,7 +152,9 @@ class _PlayerPageState extends State<PlayerPage> {
       return StatusMessage(
         icon: Icons.lock_outline,
         title: 'The camera asks for a password',
-        body: 'Enter its login to watch the stream. It stays in your device\'s secure storage.',
+        body:
+            "Enter its username and password to watch. They stay in your device's secure "
+            'storage, tied to this address.',
         action: FilledButton.icon(
           onPressed: _askPassword,
           icon: const Icon(Icons.key_outlined),
@@ -165,7 +167,7 @@ class _PlayerPageState extends State<PlayerPage> {
         icon: Icons.lock_outline,
         iconColor: theme.colorScheme.error,
         title: 'The camera did not let you in',
-        body: 'The password may be wrong, or the stream is down.',
+        body: 'Wrong password, or the stream is down.',
         action: Wrap(
           spacing: 8,
           runSpacing: 8,

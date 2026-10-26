@@ -37,11 +37,39 @@ void main() {
     expect(find.text('Camera password'), findsNothing);
   });
 
-  testWidgets('the password can be shown', (tester) async {
+  testWidgets('the username is taken as typed', (tester) async {
     await open(tester);
+    final field = tester.widget<TextField>(username);
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+  });
+
+  testWidgets('follows the theme of the screen that asks, not the app', (tester) async {
+    final dark = ThemeData(brightness: Brightness.dark);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Theme(
+          data: dark,
+          child: Builder(
+            builder: (context) =>
+                TextButton(onPressed: () => askCredentials(context), child: const Text('ask')),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('ask'));
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.byType(AlertDialog))).brightness, Brightness.dark);
+  });
+
+  testWidgets('the password can be shown, still as a password to the keyboard', (tester) async {
+    await open(tester);
+    expect(tester.widget<TextField>(password).autocorrect, isFalse);
+    expect(tester.widget<TextField>(password).enableSuggestions, isFalse);
     await tester.tap(find.byTooltip('Show password'));
     await tester.pump();
     expect(tester.widget<TextField>(password).obscureText, isFalse);
+    expect(tester.widget<TextField>(password).keyboardType, TextInputType.visiblePassword);
     await tester.tap(find.byTooltip('Hide password'));
     await tester.pump();
     expect(tester.widget<TextField>(password).obscureText, isTrue);

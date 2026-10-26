@@ -28,14 +28,20 @@ class MediaKitPlayer implements StreamPlayer {
     // SDP media address off the LAN is never dialled; no copy of the stream on disk.
     native.setProperty('rtsp-transport', 'tcp');
     native.setProperty('cache-on-disk', 'no');
+    _native = native;
     _controller = VideoController(_player);
   }
 
   late final Player _player;
+  late final NativePlayer _native;
   late final VideoController _controller;
 
+  // Not Player.open: it writes the URL, password included, to a playlist file on disk.
   @override
-  Future<void> open(String url) => _player.open(Media(url));
+  Future<void> open(String url) async {
+    await _native.command(['loadfile', url, 'replace']);
+    await _player.play();
+  }
 
   @override
   Stream<String> get errors => _player.stream.error;
@@ -54,6 +60,7 @@ class MediaKitPlayer implements StreamPlayer {
 class SecureCredentialStore implements CredentialStore {
   const SecureCredentialStore();
 
+  // Keys hold '/': the Windows Credential Manager fallback would reject them, keep it off.
   static const _storage = FlutterSecureStorage();
 
   @override

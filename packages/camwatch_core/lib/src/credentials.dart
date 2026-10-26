@@ -1,3 +1,5 @@
+import 'lan.dart';
+
 /// A camera login. Printing it never reveals the password, so a stray
 /// `print` or log line cannot leak it.
 class Credentials {
@@ -18,8 +20,10 @@ class Credentials {
 }
 
 /// The RTSP URL for one stream, with [credentials] as escaped user info.
-/// Hand it to the player only: it is never logged or shown.
+/// Hand it to the player only: it is never logged or shown. A host off the
+/// local network is refused, so a login can never travel further.
 String rtspUrl(String host, int port, String path, [Credentials? credentials]) {
+  if (!isLocalIpv4(host)) throw ArgumentError.value(host, 'host', 'not on the local network');
   final auth = credentials == null
       ? ''
       : '${Uri.encodeComponent(credentials.user)}:${Uri.encodeComponent(credentials.password)}@';

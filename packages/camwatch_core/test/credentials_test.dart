@@ -19,6 +19,11 @@ void main() {
     });
   });
 
+  test('rtspUrl refuses a host off the local network', () {
+    expect(() => rtspUrl('8.8.8.8', 554, '/'), throwsArgumentError);
+    expect(() => rtspUrl('8.8.8.8', 554, '/', const Credentials('a', 'b')), throwsArgumentError);
+  });
+
   group('Credentials', () {
     test('never prints the password', () {
       expect('${const Credentials('admin', 'secret')}', isNot(contains('secret')));
