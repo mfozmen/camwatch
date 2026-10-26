@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
@@ -78,6 +79,21 @@ void main() {
       expect(newerRelease(http, current: '0.1.0', abi: Abi.windowsX64), isNull);
       final elsewhere = release('v0.2.0', assets).replaceAll('github.com', 'github.com.example');
       expect(newerRelease(elsewhere, current: '0.1.0', abi: Abi.windowsX64), isNull);
+      final offPath = release('v0.2.0', assets).replaceAll('/releases/download/', '/blob/');
+      expect(newerRelease(offPath, current: '0.1.0', abi: Abi.windowsX64), isNull);
+      final huge = release('v99999999999999999999.0.0', assets);
+      expect(newerRelease(huge, current: '0.1.0', abi: Abi.windowsX64), isNull);
+    });
+
+    test('reads a tag with or without its v', () {
+      expect(
+        newerRelease(release('0.2.0', assets), current: '0.1.0', abi: Abi.windowsX64)?.version,
+        '0.2.0',
+      );
+      expect(
+        newerRelease(release('v0.2.0', assets), current: '0.1.0', abi: Abi.windowsX64)?.version,
+        '0.2.0',
+      );
     });
   });
 
@@ -86,15 +102,19 @@ void main() {
     final requests = <HttpRequest>[];
     var status = 200;
     var location = '';
-    final body = release('v0.2.0', assets);
+    var hang = false;
+    var body = release('v0.2.0', assets);
 
     setUp(() async {
       requests.clear();
+      body = release('v0.2.0', assets);
       status = 200;
       location = '';
+      hang = false;
       server = await HttpServer.bind('127.0.0.1', 0);
       server.listen((request) {
         requests.add(request);
+        if (hang) return;
         if (location.isNotEmpty) request.response.headers.set('location', location);
         request.response
           ..statusCode = status
@@ -127,6 +147,27 @@ void main() {
         throwsA(isA<HttpException>()),
       );
       expect(requests, hasLength(1));
+    });
+
+    test('gives up on a server that never answers', () async {
+      hang = true;
+      await expectLater(
+        fetchLatestRelease(
+          api(),
+          current: '0.1.0',
+          abi: Abi.windowsX64,
+          timeout: const Duration(milliseconds: 200),
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+    });
+
+    test('throws on a reply longer than any release listing', () async {
+      body = '{"tag_name": "v0.2.0", "pad": "${' ' * 300000}"}';
+      await expectLater(
+        fetchLatestRelease(api(), current: '0.1.0', abi: Abi.windowsX64),
+        throwsA(isA<HttpException>()),
+      );
     });
 
     test('throws when the API does not answer 200', () async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/material.dart';
 
@@ -70,7 +72,9 @@ class _UpdateButtonState extends State<UpdateButton> {
           FilledButton(
             onPressed: () {
               messenger.hideCurrentMaterialBanner();
-              widget.open(release!.download);
+              unawaited(
+                widget.open(release!.download).catchError((_) => _say('Could not open a browser')),
+              );
             },
             child: const Text('Download'),
           ),

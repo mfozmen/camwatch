@@ -16,6 +16,7 @@ void main() {
     WidgetTester tester, {
     required FakeConsent consent,
     Future<Release?> Function()? check,
+    bool browser = true,
   }) async {
     final checks = <int>[];
     final opened = <Uri>[];
@@ -30,7 +31,10 @@ void main() {
                   checks.add(1);
                   return check?.call() ?? Future.value(null);
                 },
-                open: (url) async => opened.add(url),
+                open: (url) async {
+                  if (!browser) throw Exception('no handler');
+                  opened.add(url);
+                },
               ),
             ],
           ),
@@ -78,6 +82,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(log.opened, [newer.download]);
     expect(banner, findsNothing);
+  });
+
+  testWidgets('says so when no browser opens the link', (tester) async {
+    await pump(tester, consent: FakeConsent(), check: () async => newer, browser: false);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Download'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open a browser'), findsOneWidget);
   });
 
   testWidgets('Later hides the banner', (tester) async {

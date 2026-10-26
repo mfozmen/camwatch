@@ -20,28 +20,51 @@ const _assetFor = {
   Abi.windowsX64: 'windows-x64-setup.exe',
 };
 
+/// Only a file GitHub serves for this repository's releases is ever opened.
+const _downloads = 'https://github.com/mfozmen/camwatch/releases/download/';
+
+/// A release listing is a few kilobytes; anything longer is not one.
+const _maxReply = 256 * 1024;
+
 /// Asks [api] (GitHub's latest-release endpoint) and returns the release when
 /// it is newer than [current] and has a build for [abi]. Throws when the API
-/// cannot be reached or does not answer 200.
-Future<Release?> fetchLatestRelease(Uri api, {required String current, required Abi abi}) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+/// cannot be reached within [timeout] or does not answer 200.
+Future<Release?> fetchLatestRelease(
+  Uri api, {
+  required String current,
+  required Abi abi,
+  Duration timeout = const Duration(seconds: 15),
+}) async {
+  final client = HttpClient();
   try {
-    final request = await client.getUrl(api);
-    // A 3xx would re-send the request wherever it points; the API alone may hear from us.
-    request.followRedirects = false;
-    request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
-    final response = await request.close();
-    if (response.statusCode != 200) {
-      throw HttpException('${response.statusCode} from $api', uri: api);
-    }
-    return newerRelease(await utf8.decodeStream(response), current: current, abi: abi);
+    return await _fetch(client, api, current: current, abi: abi).timeout(timeout);
   } finally {
-    client.close();
+    client.close(force: true);
   }
 }
 
+Future<Release?> _fetch(
+  HttpClient client,
+  Uri api, {
+  required String current,
+  required Abi abi,
+}) async {
+  final request = await client.getUrl(api);
+  // A 3xx would re-send the request wherever it points; the API alone may hear from us.
+  request.followRedirects = false;
+  request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
+  final response = await request.close();
+  if (response.statusCode != 200) throw HttpException('${response.statusCode} from $api', uri: api);
+  final body = <int>[];
+  await for (final chunk in response) {
+    body.addAll(chunk);
+    if (body.length > _maxReply) throw HttpException('reply too long', uri: api);
+  }
+  return newerRelease(utf8.decode(body), current: current, abi: abi);
+}
+
 /// Reads GitHub's release JSON; null unless it is newer than [current] and
-/// carries an asset built for [abi] served by github.com over https.
+/// carries an asset built for [abi] among this repository's release downloads.
 Release? newerRelease(String json, {required String current, required Abi abi}) {
   final suffix = _assetFor[abi];
   if (suffix == null) return null;
@@ -56,16 +79,18 @@ Release? newerRelease(String json, {required String current, required Abi abi}) 
     final link = asset is Map ? asset['browser_download_url'] : null;
     if (name is! String || link is! String || !name.endsWith('-$suffix')) continue;
     final url = Uri.tryParse(link);
-    if (url == null || url.scheme != 'https' || url.host != 'github.com') return null;
-    return Release(tag.substring(1), url);
+    if (url == null || !link.startsWith(_downloads)) return null;
+    return Release(tag.replaceFirst('v', ''), url);
   }
   return null;
 }
 
 final _version = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)$');
 
-List<int>? _parts(String version) =>
-    _version.firstMatch(version)?.groups([1, 2, 3]).map((n) => int.parse(n!)).toList();
+List<int>? _parts(String version) {
+  final parts = _version.firstMatch(version)?.groups([1, 2, 3]).map((n) => int.tryParse(n!));
+  return parts == null || parts.contains(null) ? null : parts.cast<int>().toList();
+}
 
 bool _newer(String tag, String current) {
   final a = _parts(tag);
