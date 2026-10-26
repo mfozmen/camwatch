@@ -9,9 +9,10 @@ Find the cameras on your network, see how exposed each one is, and watch the
 ones you can reach. On Android and Windows.
 
 - **Discover:** scans your local network for cameras (open camera ports, ONVIF, mDNS),
-  then checks each one for FTP, telnet and HTTPS.
+  then checks each one for FTP, SSH, telnet, HTTPS and the XMeye and Dahua ports.
 - **Grade:** flags what makes a camera easy to break into: a stream anyone can
-  watch, telnet left open, a web page without HTTPS.
+  watch, telnet or the XMeye DVR port left open, a web page without HTTPS, SSH,
+  FTP or a vendor control port open.
 - **Watch:** plays the RTSP streams it can reach, with your password when needed.
 
 No account, no server, no trackers. camwatch only ever talks to devices on your

@@ -10,9 +10,10 @@ typedef Connector = Future<void> Function(String host, int port, Duration timeou
 /// and the Hikvision/Dahua SDK port (8000).
 const cameraPorts = [80, 554, 8000, 8080, 8554];
 
-/// The ports the grade looks at: FTP, telnet and HTTPS. Probed on found
-/// devices only, so the subnet scan stays as short as it is.
-const gradePorts = [21, 23, 443];
+/// The ports the grade looks at: FTP, SSH, telnet, HTTPS, the XMeye DVR
+/// port and Dahua's protocol port. Probed on found devices only, so the
+/// subnet scan stays as short as it is.
+const gradePorts = [21, 22, 23, 443, 34567, 37777];
 
 /// The open ones of [ports] on each of [hosts], sorted; hosts with none open
 /// are left out. At most [concurrency] connections are in flight at once and

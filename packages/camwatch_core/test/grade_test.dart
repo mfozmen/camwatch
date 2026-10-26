@@ -77,11 +77,60 @@ void main() {
       );
     });
 
+    test('the XMeye DVR port is red', () {
+      expect(
+        findings(device([34567]), {}).single,
+        const Finding(
+          Grade.red,
+          'The XMeye DVR port is open',
+          'Port 34567 has built-in accounts that botnets log into. Put the device on its '
+              'own network segment, or replace it: firmware rarely closes this.',
+        ),
+      );
+    });
+
+    test('SSH is amber', () {
+      expect(
+        findings(device([22]), {}).single,
+        const Finding(
+          Grade.amber,
+          'SSH is open',
+          'Many cameras ship SSH with a root password you cannot change. Turn it off, '
+              'or make sure the password is yours.',
+        ),
+      );
+    });
+
+    test('the Dahua protocol port is amber', () {
+      expect(
+        findings(device([37777]), {}).single,
+        const Finding(
+          Grade.amber,
+          'The Dahua protocol port is open',
+          'Port 37777 is a private control channel that old firmware leaves without a '
+              'login. Keep the firmware current and turn it off unless a recorder needs it.',
+        ),
+      );
+    });
+
+    test('the grade probe covers every port a rule looks at', () {
+      expect(gradePorts, containsAll([21, 22, 23, 443, 34567, 37777]));
+    });
+
     test('findings come worst first', () {
-      final grades = findings(device([21, 23, 80, 554, 8000]), {
+      final grades = findings(device([21, 22, 23, 80, 554, 8000, 34567, 37777]), {
         '/': PathStatus.open,
       }).map((f) => f.grade);
-      expect(grades, [Grade.red, Grade.red, Grade.amber, Grade.amber, Grade.amber]);
+      expect(grades, [
+        Grade.red,
+        Grade.red,
+        Grade.red,
+        Grade.amber,
+        Grade.amber,
+        Grade.amber,
+        Grade.amber,
+        Grade.amber,
+      ]);
     });
   });
 

@@ -14,6 +14,7 @@ import 'status_message.dart';
 
 const _portNames = {
   21: 'FTP',
+  22: 'SSH',
   23: 'Telnet',
   80: 'HTTP',
   443: 'HTTPS',
@@ -21,6 +22,8 @@ const _portNames = {
   8000: 'SDK',
   8080: 'HTTP',
   8554: 'RTSP',
+  34567: 'XMeye',
+  37777: 'Dahua',
 };
 
 /// A port number as a person reads it on a card: "RTSP 554".
