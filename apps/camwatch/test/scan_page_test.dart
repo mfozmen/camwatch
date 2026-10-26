@@ -186,6 +186,33 @@ void main() {
       expect(find.byTooltip('Save camera'), findsOneWidget);
     });
 
+    testWidgets('a long address beside the ONVIF badge stays on one line', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pump(
+        tester,
+        () async => const [
+          Device(
+            '192.168.100.254',
+            openPorts: [80, 554, 8000, 8080, 8554],
+            onvifAddress: 'http://192.168.100.254/o',
+          ),
+        ],
+      );
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      final address = tester.widget<Text>(find.text('192.168.100.254'));
+      expect(address.softWrap, isFalse);
+      final box = tester.getRect(find.text('192.168.100.254'));
+      final badge = tester.getRect(find.text('ONVIF'));
+      expect(
+        badge.top,
+        greaterThanOrEqualTo(box.bottom),
+        reason: 'the badge sits under the address',
+      );
+    });
+
     testWidgets('a device without a stream cannot be saved', (tester) async {
       await pump(
         tester,

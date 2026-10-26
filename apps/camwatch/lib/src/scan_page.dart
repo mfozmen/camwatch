@@ -456,13 +456,23 @@ class _DeviceCard extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Text(
+                                    device.address,
+                                    softWrap: false,
+                                    overflow: TextOverflow.fade,
+                                    style: text.titleMedium?.copyWith(
+                                      fontFeatures: const [FontFeature.tabularFigures()],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
                                       Expanded(
                                         child: Text(
-                                          device.address,
-                                          style: text.titleMedium?.copyWith(
-                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                          line.label,
+                                          style: text.bodyMedium?.copyWith(
+                                            color: line.color,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ),
@@ -484,14 +494,6 @@ class _DeviceCard extends StatelessWidget {
                                           ),
                                         ),
                                     ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    line.label,
-                                    style: text.bodyMedium?.copyWith(
-                                      color: line.color,
-                                      fontWeight: FontWeight.w500,
-                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
