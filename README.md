@@ -36,7 +36,9 @@ Each file has a `.sha256` next to it.
 
 Open camwatch and tap **Scan network**. The first time, it asks you to confirm
 that the network is yours or one you may test; after that it probes every address on your
-subnet for the usual camera ports and asks for ONVIF cameras, then lists each
+subnet for the usual camera ports, asks for ONVIF cameras and listens for mDNS
+announcements (`_rtsp._tcp`, `_onvif._tcp`; an announced port is listed only once a
+connection confirms it), then lists each
 device it found with its open ports, an **ONVIF** badge when the camera
 answered, and its grade: **Exposed** (red), **At risk** (amber) or **No issues
 found** (green). A scan takes a few seconds; the stream of each RTSP device is

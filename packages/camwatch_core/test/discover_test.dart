@@ -14,6 +14,7 @@ void main() {
           probed = true;
           return {};
         },
+        mdns: (_) async => {},
         onvif: (_) async => {},
       );
       expect(devices, isNull);
@@ -34,6 +35,7 @@ void main() {
                   '192.168.1.6': [23],
                 };
         },
+        mdns: (_) async => {},
         onvif: (address) async {
           log.add('onvif $address');
           return {'192.168.1.6': 'http://192.168.1.6/onvif/device_service'};
@@ -68,6 +70,7 @@ void main() {
             : {
                 for (final host in hosts) host: const [443],
               },
+        mdns: (_) async => {},
         onvif: (_) async => {'192.168.1.3': 'http://192.168.1.3/o'},
       );
       expect(devices, [
@@ -84,6 +87,7 @@ void main() {
           if (ports == gradePorts) graded.addAll(hosts);
           return {};
         },
+        mdns: (_) async => {},
         onvif: (_) async => {
           '10.0.0.9': 'http://10.0.0.9/o',
           '192.168.1.6': 'http://192.168.1.6/o',
@@ -96,11 +100,43 @@ void main() {
       ]);
     });
 
+    test('lists an mDNS-announced port only once a connect confirms it, in the subnet', () async {
+      final probed = <String>[];
+      final devices = await discoverDevices(
+        network: () async => (address: '192.168.1.5', prefixLength: 29),
+        ports: (hosts, ports) async {
+          probed.add('${hosts.join(',')}:${ports.join(',')}');
+          return ports.contains(10554)
+              ? {
+                  '192.168.1.2': [10554],
+                }
+              : {};
+        },
+        mdns: (_) async => {
+          '192.168.1.2': [554, 10554],
+          '192.168.1.3': [8554],
+          '10.0.0.9': [554],
+        },
+        onvif: (_) async => {},
+      );
+      expect(devices, [
+        const Device('192.168.1.2', openPorts: [10554]),
+      ]);
+      expect(probed, contains('192.168.1.2:10554'));
+      expect(probed.where((p) => p.startsWith('10.0.0.9')), isEmpty);
+      expect(
+        probed.where((p) => p.contains(':554')),
+        isEmpty,
+        reason: 'camera ports were probed already',
+      );
+    });
+
     test('a failing scan fails the whole discovery once both have finished', () async {
       final onvifDone = Completer<Map<String, String>>();
       final discovery = discoverDevices(
         network: () async => (address: '10.0.0.1', prefixLength: 30),
         ports: (_, _) async => throw const SocketException('down'),
+        mdns: (_) async => {},
         onvif: (_) => onvifDone.future,
       );
       var finished = false;
@@ -115,6 +151,7 @@ void main() {
       final devices = await discoverDevices(
         network: () async => (address: '10.0.0.1', prefixLength: 30),
         ports: (_, _) async => {},
+        mdns: (_) async => {},
         onvif: (_) async => {},
       );
       expect(devices, isEmpty);
