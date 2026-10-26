@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:ffi';
 
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'consent_store.dart';
 import 'credential_store.dart';
 import 'multicast_lock.dart';
 import 'player.dart';
+import 'version.dart';
 
 // The glue `flutter test` cannot run: a platform channel and libmpv. Kept
 // thin; everything around it is tested with fakes.
@@ -102,12 +105,20 @@ class MediaKitPlayer implements StreamPlayer {
   }
 }
 
-/// The accepted notice, in the same store as the logins.
+/// The newest release on GitHub, when it is newer than this build and made for it.
+Future<Release?> checkForUpdate() =>
+    fetchLatestRelease(releasesApi, current: appVersion, abi: Abi.current());
+
+/// Hands [url] to the system browser, which downloads the release there.
+Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);
+
+/// An accepted notice, in the same store as the logins.
 class SecureConsentStore implements ConsentStore {
-  const SecureConsentStore();
+  const SecureConsentStore.scan() : _key = 'consent/scan';
+  const SecureConsentStore.updates() : _key = 'consent/updates';
 
   static const _storage = FlutterSecureStorage();
-  static const _key = 'consent/scan';
+  final String _key;
 
   @override
   Future<bool> read() async => await _storage.read(key: _key) == 'yes';

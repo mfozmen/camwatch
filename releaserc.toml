@@ -5,6 +5,7 @@
 version_variables = [
   "packages/camwatch_core/pubspec.yaml:version",
   "apps/camwatch/pubspec.yaml:version",
+  "apps/camwatch/lib/src/version.dart:appVersion",
 ]
 commit_message = "chore(release): {version} [skip ci]"
 allow_zero_version = true

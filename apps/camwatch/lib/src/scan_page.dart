@@ -40,6 +40,7 @@ class ScanPage extends StatefulWidget {
     required this.findPaths,
     required this.store,
     required this.consent,
+    this.actions = const [],
   });
 
   final Future<List<Device>?> Function() scan;
@@ -47,6 +48,7 @@ class ScanPage extends StatefulWidget {
   final FindPaths findPaths;
   final CredentialStore store;
   final ConsentStore consent;
+  final List<Widget> actions;
 
   @override
   State<ScanPage> createState() => _ScanPageState();
@@ -140,7 +142,7 @@ class _ScanPageState extends State<ScanPage> {
   Widget build(BuildContext context) {
     final scanning = _phase == _Phase.scanning;
     return Scaffold(
-      appBar: AppBar(title: const Text('camwatch')),
+      appBar: AppBar(title: const Text('camwatch'), actions: widget.actions),
       body: Center(
         child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 600), child: _body()),
       ),
