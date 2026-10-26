@@ -104,6 +104,16 @@ void main() {
         'a tab between the tokens': [
           'RTSP/1.0	302 Found${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
         ],
+        'a code that wraps to 300 in a 32-bit int': [
+          'RTSP/1.0 4294967596 x${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+        ],
+        'a code that wraps in a 64-bit long, split': [
+          'RTSP/1.0 184467440737',
+          '09551916 x${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+        ],
+        'a negative code that wraps to 300': [
+          'RTSP/1.0 -4294966996 x${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+        ],
       };
       for (final MapEntry(key: name, value: writes) in evasions.entries) {
         test(name, () async {

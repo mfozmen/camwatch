@@ -96,10 +96,12 @@ class _ReplyScanner {
   var _frameLeft = 0;
 
   static final _length = RegExp(r'^content-length:\s*([+-]?\d+)', caseSensitive: false);
-  static final _number = RegExp(r'^\+?(\d+)');
+  static final _number = RegExp(r'^[+-]?(\d+)');
 
   /// The library takes the second word of a status line and reads it as
-  /// atoi does: an optional sign, then digits, leading zeros included. A
+  /// atoi does: an optional sign, then digits, leading zeros included, and
+  /// a run long enough to overflow wraps to whatever it wraps to. So any
+  /// code longer than three digits is cut along with the 3xx ones, and a
   /// line that starts with a space is read both ways, in case the first
   /// word is skipped as empty; cutting one reply too many costs nothing.
   static bool _isRedirect(String line) {
@@ -110,7 +112,9 @@ class _ReplyScanner {
     ];
     return candidates.any((word) {
       final digits = _number.firstMatch(word)?.group(1)?.replaceFirst(RegExp(r'^0+'), '');
-      return digits != null && digits.length == 3 && digits.startsWith('3');
+      if (digits == null) return false;
+      return digits.length > 3 ||
+          (digits.length == 3 && digits.startsWith('3') && !word.startsWith('-'));
     });
   }
 
