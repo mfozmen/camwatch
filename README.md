@@ -34,7 +34,8 @@ Each file has a `.sha256` next to it.
 
 ## Use
 
-Open camwatch and tap **Scan network**. It probes every address on your
+Open camwatch and tap **Scan network**. The first time, it asks you to confirm
+that the network is yours or one you may test; after that it probes every address on your
 subnet for the usual camera ports and asks for ONVIF cameras, then lists each
 device it found with its open ports, an **ONVIF** badge when the camera
 answered, and its grade: **Exposed** (red), **At risk** (amber) or **No issues

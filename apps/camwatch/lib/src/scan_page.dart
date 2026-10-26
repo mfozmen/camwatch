@@ -4,6 +4,7 @@ import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'consent_store.dart';
 import 'credential_store.dart';
 
 import 'player.dart';
@@ -29,7 +30,8 @@ enum _Phase { idle, scanning, noNetwork, failed, done }
 
 /// The first screen: one button that scans the local network and the
 /// devices it found. [scan] resolves to null when there is no LAN; a tap on
-/// a device with RTSP opens it in a fresh player from [newPlayer].
+/// a device with RTSP opens it in a fresh player from [newPlayer]. Nothing
+/// is probed until the notice in [consent] has been accepted once.
 class ScanPage extends StatefulWidget {
   const ScanPage({
     super.key,
@@ -37,12 +39,14 @@ class ScanPage extends StatefulWidget {
     required this.newPlayer,
     required this.findPaths,
     required this.store,
+    required this.consent,
   });
 
   final Future<List<Device>?> Function() scan;
   final StreamPlayer Function() newPlayer;
   final FindPaths findPaths;
   final CredentialStore store;
+  final ConsentStore consent;
 
   @override
   State<ScanPage> createState() => _ScanPageState();
@@ -54,6 +58,7 @@ class _ScanPageState extends State<ScanPage> {
   var _streams = <String, ValueNotifier<Map<String, PathStatus>?>>{};
 
   Future<void> _scan() async {
+    if (!await _consented()) return;
     setState(() => _phase = _Phase.scanning);
     try {
       final devices = await widget.scan();
@@ -81,6 +86,20 @@ class _ScanPageState extends State<ScanPage> {
     } catch (_) {
       into.value = const {};
     }
+  }
+
+  Future<bool> _consented() async {
+    var given = false;
+    try {
+      given = await widget.consent.read();
+    } catch (_) {}
+    if (given || !mounted) return given;
+    final accepted = await showDialog<bool>(context: context, builder: (_) => const _Notice());
+    if (accepted != true) return false;
+    try {
+      await widget.consent.write();
+    } catch (_) {}
+    return mounted;
   }
 
   void _watch(Device device) => Navigator.of(context).push(
@@ -157,6 +176,30 @@ class _ScanPageState extends State<ScanPage> {
     ),
     _Phase.done => _DeviceList(_devices, streams: _streams, onReport: _report, onWatch: _watch),
   };
+}
+
+/// The notice before the first scan; pops true once accepted.
+class _Notice extends StatelessWidget {
+  const _Notice();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      icon: const Icon(Icons.policy_outlined),
+      title: const Text('Before the first scan'),
+      content: const Text(
+        'camwatch probes every device on the network you are connected to. '
+        'Scan only your own network, or one you have permission to test.',
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('I understand'),
+        ),
+      ],
+    );
+  }
 }
 
 class _DeviceList extends StatelessWidget {
