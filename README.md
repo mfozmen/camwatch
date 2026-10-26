@@ -8,7 +8,7 @@
 Find the cameras on your network, see how exposed each one is, and watch the
 ones you can reach. On Android and Windows.
 
-- **Discover:** scans your local network for cameras (open camera ports, ONVIF),
+- **Discover:** scans your local network for cameras (open camera ports, ONVIF, mDNS),
   then checks each one for FTP, telnet and HTTPS.
 - **Grade:** flags what makes a camera easy to break into: a stream anyone can
   watch, telnet left open, a web page without HTTPS.
@@ -36,8 +36,8 @@ Each file has a `.sha256` next to it.
 
 Open camwatch and tap **Scan network**. The first time, it asks you to confirm
 that the network is yours or one you may test; after that it probes every address on your
-subnet for the usual camera ports, asks for ONVIF cameras and listens for mDNS
-announcements (`_rtsp._tcp`, `_onvif._tcp`; an announced port is listed only once a
+subnet for the usual camera ports, asks for ONVIF cameras and asks over mDNS for
+announced services (`_rtsp._tcp`, `_onvif._tcp`; an announced port is listed only once a
 connection confirms it), then lists each
 device it found with its open ports, an **ONVIF** badge when the camera
 answered, and its grade: **Exposed** (red), **At risk** (amber) or **No issues

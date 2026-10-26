@@ -72,6 +72,21 @@ void main() {
       expect(mdnsPorts(response(body, questions: 1)), [554]);
     });
 
+    test('skips an SRV too short to hold a port and reads on', () {
+      final short = record(rtspCam, 33, [0, 2]);
+      final body = [...short, ...srv(name('B._rtsp._tcp.local'), 554, name('b.local'))];
+      expect(mdnsPorts(response(body, answers: 2)), [554]);
+    });
+
+    test('gives up on a name longer than DNS allows', () {
+      final long = [
+        for (var i = 0; i < 5; i++) ...[60, ...List.filled(60, 0x61)],
+        0,
+      ];
+      final body = [...srv(long, 554, name('c.local')), ...srv(rtspCam, 8554, name('c.local'))];
+      expect(mdnsPorts(response(body, answers: 2)), isEmpty);
+    });
+
     test('yields nothing for garbage, a truncated record or a pointer loop', () {
       expect(mdnsPorts([1, 2, 3]), isEmpty);
       expect(mdnsPorts(response(srv(rtspCam, 554, name('c.local')).sublist(0, 20))), isEmpty);

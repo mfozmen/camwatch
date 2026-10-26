@@ -64,7 +64,7 @@ List<int> mdnsPorts(List<int> message) {
       final length = reader.u16();
       final next = reader.at + length;
       if (next > message.length) break;
-      if (type == _srv && _isCamera(owner)) {
+      if (type == _srv && length >= 6 && _isCamera(owner)) {
         reader.skip(4);
         ports.add(reader.u16());
       }
@@ -96,20 +96,8 @@ Future<Map<String, List<int>>> discoverMdns(
   }
   final socket = await RawDatagramSocket.bind(localAddress, 0);
   final found = <String, List<int>>{};
-  socket.listen((_) {
-    final datagram = socket.receive();
-    if (datagram == null || datagram.data.length > maxMdnsBytes) return;
-    final sender = datagram.address.address;
-    if (!isLocalIpv4(sender) || (!found.containsKey(sender) && found.length >= maxSenders)) {
-      return;
-    }
-    final ports = found.putIfAbsent(sender, () => []);
-    for (final port in mdnsPorts(datagram.data)) {
-      if (ports.length >= maxMdnsPortsPerHost) break;
-      if (!ports.contains(port)) ports.add(port);
-    }
-    if (ports.isEmpty) found.remove(sender);
-  });
+  // shortcut: no onError, a multicast send gets no ICMP error event; add one if a unicast target ever ships.
+  socket.listen((_) => _collect(found, socket.receive()));
   try {
     socket.send(mdnsQuery(), target ?? mdnsGroup, port);
     await Future<void>.delayed(wait);
@@ -120,6 +108,18 @@ Future<Map<String, List<int>>> discoverMdns(
     ports.sort();
   }
   return found;
+}
+
+void _collect(Map<String, List<int>> found, Datagram? datagram) {
+  if (datagram == null || datagram.data.length > maxMdnsBytes) return;
+  final sender = datagram.address.address;
+  if (!isLocalIpv4(sender) || (!found.containsKey(sender) && found.length >= maxSenders)) return;
+  final ports = found.putIfAbsent(sender, () => []);
+  for (final port in mdnsPorts(datagram.data)) {
+    if (ports.length >= maxMdnsPortsPerHost) break;
+    if (!ports.contains(port)) ports.add(port);
+  }
+  if (ports.isEmpty) found.remove(sender);
 }
 
 /// A cursor over a DNS message; every read past the end throws RangeError.
@@ -135,15 +135,18 @@ class _Reader {
 
   void skip(int n) => at += n;
 
-  /// A name, following compression pointers; more than 16 jumps is a loop.
+  /// A name, following compression pointers; more than 16 jumps is a loop,
+  /// more than 255 bytes of labels is not a name (RFC 1035) but busywork.
   String name() {
     final labels = <String>[];
     var cursor = at;
     int? resume;
     var jumps = 0;
+    var total = 0;
     while (true) {
       final length = bytes[cursor++];
       if (length == 0) break;
+      if ((total += length) > 255) throw RangeError('name too long');
       if (length & 0xC0 == 0xC0) {
         if (++jumps > 16) throw RangeError('pointer loop');
         final offset = ((length & 0x3F) << 8) | bytes[cursor++];
