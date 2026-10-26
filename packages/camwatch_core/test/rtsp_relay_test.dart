@@ -94,6 +94,16 @@ void main() {
         'a 3xx after a header that only mentions one': [
           'RTSP/1.0 200 OK${crlf}X: RTSP/1.0 301$crlf$crlf$found',
         ],
+        'leading zeros, read as atoi does': [
+          'RTSP/1.0 0301 Moved${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+        ],
+        'a plus sign': ['RTSP/1.0 +302${crlf}Location: rtsp://8.8.8.8/$crlf$crlf'],
+        'a leading space, whichever token the library takes': [
+          ' 302 Found${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+        ],
+        'a tab between the tokens': [
+          'RTSP/1.0	302 Found${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+        ],
       };
       for (final MapEntry(key: name, value: writes) in evasions.entries) {
         test(name, () async {
@@ -104,6 +114,42 @@ void main() {
           expect(relay.redirected, isTrue);
         });
       }
+
+      test('a 302 split at any byte', () async {
+        for (var at = 1; at < found.length; at += 7) {
+          await up(
+            (_) => [latin1.encode(found.substring(0, at)), latin1.encode(found.substring(at))],
+          );
+          final reply = await exchange(relay.port, 'DESCRIBE * RTSP/1.0${crlf}CSeq: 1$crlf$crlf');
+          expect(reply, isNot(contains('Location')), reason: 'split at $at');
+          await relay.onRedirect.timeout(const Duration(seconds: 2));
+          await relay.close();
+          await cam.close();
+        }
+        await up(says(ok));
+      });
+    });
+
+    test(
+      'a Content-Length too long for an int swallows the rest, like the library would',
+      () async {
+        await up(
+          says(
+            'RTSP/1.0 200 OK${crlf}Content-Length: 99999999999999999999999$crlf$crlf'
+            'RTSP/1.0 302 Found${crlf}Location: rtsp://8.8.8.8/$crlf$crlf',
+          ),
+        );
+        final reply = await exchange(relay.port, 'DESCRIBE * RTSP/1.0${crlf}CSeq: 1$crlf$crlf');
+        expect(reply, contains('Content-Length'));
+        expect(relay.redirected, isFalse);
+      },
+    );
+
+    test('a 3xx with a code the library would not read as one is passed on', () async {
+      await up(says('RTSP/1.0 -301 Odd${crlf}CSeq: 1$crlf$crlf'));
+      final reply = await exchange(relay.port, 'DESCRIBE * RTSP/1.0${crlf}CSeq: 1$crlf$crlf');
+      expect(reply, contains('-301'));
+      expect(relay.redirected, isFalse);
     });
 
     test('a 3xx inside a header line or interleaved media is not a redirect', () async {

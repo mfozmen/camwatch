@@ -95,55 +95,82 @@ class _ReplyScanner {
   var _bodyLeft = 0;
   var _frameLeft = 0;
 
-  static final _redirect = RegExp(r'^\S+\s+\+?3\d\d');
   static final _length = RegExp(r'^content-length:\s*([+-]?\d+)', caseSensitive: false);
+  static final _number = RegExp(r'^\+?(\d+)');
+
+  /// The library takes the second word of a status line and reads it as
+  /// atoi does: an optional sign, then digits, leading zeros included. A
+  /// line that starts with a space is read both ways, in case the first
+  /// word is skipped as empty; cutting one reply too many costs nothing.
+  static bool _isRedirect(String line) {
+    final words = line.trim().split(RegExp(r'\s+'));
+    final candidates = [
+      if (words.length > 1) words[1],
+      if (line.startsWith(RegExp(r'\s'))) words[0],
+    ];
+    return candidates.any((word) {
+      final digits = _number.firstMatch(word)?.group(1)?.replaceFirst(RegExp(r'^0+'), '');
+      return digits != null && digits.length == 3 && digits.startsWith('3');
+    });
+  }
 
   /// Whether [chunk] completes a 3xx status line. Scan before forwarding:
   /// a reply in one chunk must not be passed on at all.
   bool redirects(List<int> chunk) {
     var i = 0;
     while (i < chunk.length) {
-      if (_frameLeft > 0 || _bodyLeft > 0) {
-        final skipped = min(_frameLeft > 0 ? _frameLeft : _bodyLeft, chunk.length - i);
-        if (_frameLeft > 0) {
-          _frameLeft -= skipped;
-        } else {
-          _bodyLeft -= skipped;
-        }
+      final skipped = _skip(chunk.length - i);
+      if (skipped > 0) {
         i += skipped;
         continue;
       }
-      final byte = chunk[i++];
-      if (_frameHeader.isNotEmpty || (_line.isEmpty && byte == 0x24)) {
-        _frameHeader.add(byte);
-        if (_frameHeader.length == 4) {
-          _frameLeft = (_frameHeader[2] << 8) | _frameHeader[3];
-          _frameHeader.clear();
-        }
-        continue;
-      }
-      if (byte == 13) continue;
-      if (byte != 10) {
-        _line.add(byte);
-        continue;
-      }
-      if (_endsLine(latin1.decode(_line))) return true;
+      if (_endsLineAt(chunk[i++])) return true;
     }
     return false;
+  }
+
+  /// How many of the next [available] bytes belong to a frame or a body.
+  int _skip(int available) {
+    if (_frameLeft > 0) {
+      final n = min(_frameLeft, available);
+      _frameLeft -= n;
+      return n;
+    }
+    final n = min(_bodyLeft, available);
+    _bodyLeft -= n;
+    return n;
+  }
+
+  bool _endsLineAt(int byte) {
+    if (_frameHeader.isNotEmpty || (_line.isEmpty && byte == 0x24)) {
+      _frameHeader.add(byte);
+      if (_frameHeader.length == 4) {
+        _frameLeft = (_frameHeader[2] << 8) | _frameHeader[3];
+        _frameHeader.clear();
+      }
+      return false;
+    }
+    if (byte == 13) return false;
+    if (byte != 10) {
+      _line.add(byte);
+      return false;
+    }
+    return _endsLine(latin1.decode(_line));
   }
 
   bool _endsLine(String line) {
     _line.clear();
     if (_atStatus) {
       if (line.isEmpty) return false;
-      if (_redirect.hasMatch(line)) return true;
+      if (_isRedirect(line)) return true;
       _atStatus = false;
       _contentLength = 0;
     } else if (line.isEmpty) {
       _bodyLeft = _contentLength;
       _atStatus = true;
     } else if (_length.firstMatch(line) case final match?) {
-      _contentLength = max(0, int.parse(match.group(1)!));
+      // Too long for an int: the library would wait for that body forever, so does the scan.
+      _contentLength = max(0, int.tryParse(match.group(1)!) ?? 1 << 62);
     }
     return false;
   }
