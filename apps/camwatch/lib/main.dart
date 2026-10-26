@@ -16,16 +16,16 @@ class CamwatchApp extends StatelessWidget {
       title: 'camwatch',
       theme: ThemeData(colorSchemeSeed: Colors.teal),
       darkTheme: ThemeData(colorSchemeSeed: Colors.teal, brightness: Brightness.dark),
-      home: ScanPage(
+      home: const ScanPage(
         scan: scanLan,
         newPlayer: MediaKitPlayer.new,
         findPaths: probeStreamPaths,
-        store: const SecureCredentialStore(),
-        consent: const SecureConsentStore.scan(),
+        store: SecureCredentialStore(),
+        consent: SecureConsentStore.scan(),
         actions: [
           UpdateButton(
             check: checkForUpdate,
-            consent: const SecureConsentStore.updates(),
+            consent: SecureConsentStore.updates(),
             open: openInBrowser,
           ),
         ],

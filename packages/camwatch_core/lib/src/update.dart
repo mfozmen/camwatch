@@ -67,20 +67,22 @@ Future<Release?> _fetch(
 /// carries an asset built for [abi] among this repository's release downloads.
 Release? newerRelease(String json, {required String current, required Abi abi}) {
   final suffix = _assetFor[abi];
-  if (suffix == null) return null;
   final release = jsonDecode(json);
-  if (release is! Map) return null;
+  if (suffix == null || release is! Map) return null;
   final tag = release['tag_name'];
   if (tag is! String || !_newer(tag, current)) return null;
   final assets = release['assets'];
-  if (assets is! List) return null;
+  final url = assets is List ? _download(assets, suffix) : null;
+  return url == null ? null : Release(tag.replaceFirst('v', ''), url);
+}
+
+/// The link of the first asset named for [suffix], if it is one of ours.
+Uri? _download(List<dynamic> assets, String suffix) {
   for (final asset in assets) {
     final name = asset is Map ? asset['name'] : null;
     final link = asset is Map ? asset['browser_download_url'] : null;
     if (name is! String || link is! String || !name.endsWith('-$suffix')) continue;
-    final url = Uri.tryParse(link);
-    if (url == null || !link.startsWith(_downloads)) return null;
-    return Release(tag.replaceFirst('v', ''), url);
+    return link.startsWith(_downloads) ? Uri.tryParse(link) : null;
   }
   return null;
 }
