@@ -66,7 +66,7 @@ void main() {
     final log = await pump(tester, consent: consent);
     await tester.tap(button);
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Allow'));
     await tester.pumpAndSettle();
     expect(consent.given, isTrue);
     expect(log.checks, hasLength(1));
@@ -92,6 +92,33 @@ void main() {
     expect(find.text('Could not open a browser'), findsOneWidget);
   });
 
+  testWidgets('Stop checking forgets the consent', (tester) async {
+    final consent = FakeConsent();
+    final log = await pump(tester, consent: consent);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stop checking'));
+    await tester.pumpAndSettle();
+    expect(consent.given, isFalse);
+    await tester.tap(button);
+    await tester.pump();
+    expect(notice, findsOneWidget);
+    expect(log.checks, hasLength(2), reason: 'start and the tap, not the one after');
+  });
+
+  testWidgets('the banner keeps to the list column on a wide window', (tester) async {
+    tester.view.physicalSize = const Size(1280, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pump(tester, consent: FakeConsent(), check: () async => newer);
+    await tester.pumpAndSettle();
+    final banner = find.byType(MaterialBanner);
+    final box = tester.getRect(find.descendant(of: banner, matching: find.byType(Material)).first);
+    expect(box.width, lessThanOrEqualTo(600));
+    expect(box.center.dx, 640);
+  });
+
   testWidgets('Later hides the banner', (tester) async {
     await pump(tester, consent: FakeConsent(), check: () async => newer);
     await tester.pumpAndSettle();
@@ -115,6 +142,9 @@ void main() {
     await pump(tester, consent: FakeConsent(), check: () async => throw Exception('offline'));
     await tester.pumpAndSettle();
     await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Could not reach github.com'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('Could not reach github.com'), findsOneWidget);
   });

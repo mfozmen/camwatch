@@ -125,6 +125,9 @@ class SecureConsentStore implements ConsentStore {
 
   @override
   Future<void> write() => _storage.write(key: _key, value: 'yes');
+
+  @override
+  Future<void> clear() => _storage.delete(key: _key);
 }
 
 /// Logins in the OS secure store: the Android Keystore, DPAPI on Windows.

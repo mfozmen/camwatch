@@ -59,7 +59,8 @@ asks before sending it. Once accepted, the app also checks quietly each time it
 starts and shows a banner when a newer version is out: **Download** opens the
 build for your device (the APK for your phone's processor, the Windows setup)
 in your browser. Install it over the old one. Nothing about you or your cameras
-is sent, and saying **Not now** keeps the app fully offline.
+is sent; **Not now** keeps the app fully offline, and **Stop checking** on a
+later check turns it off again.
 
 ## Only scan networks you own
 

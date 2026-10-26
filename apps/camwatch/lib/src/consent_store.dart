@@ -3,4 +3,5 @@
 abstract interface class ConsentStore {
   Future<bool> read();
   Future<void> write();
+  Future<void> clear();
 }
