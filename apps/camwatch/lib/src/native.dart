@@ -26,7 +26,8 @@ class MediaKitPlayer implements StreamPlayer {
       configuration: const PlayerConfiguration(
         protocolWhitelist: ['rtsp', 'rtp', 'udp', 'tcp'],
         // FFmpeg announces an RTSP redirect at its info level, which mpv
-        // relays as verbose; nothing less chatty carries it.
+        // relays as verbose; nothing less chatty carries it. Never print
+        // that stream: it carries the URL, login included.
         logLevel: MPVLogLevel.v,
       ),
     );
@@ -53,6 +54,7 @@ class MediaKitPlayer implements StreamPlayer {
   late final StreamSubscription<PlayerLog> _redirects;
   final _redirected = StreamController<void>.broadcast();
   RtspRelay? _relay;
+  var _disposed = false;
 
   // Not Player.open: it writes the URL, password included, to a playlist file
   // on disk. The camera is reached through the loopback relay, which drops a
@@ -60,9 +62,12 @@ class MediaKitPlayer implements StreamPlayer {
   @override
   Future<void> open(String url) async {
     final target = Uri.parse(url);
-    await _relay?.close();
     final relay = await RtspRelay.start(target.host, target.port);
+    if (_disposed) return relay.close();
+    // Assign before closing the old one: two opens in flight must not leak a listener.
+    final previous = _relay;
     _relay = relay;
+    await previous?.close();
     unawaited(
       relay.onRedirect.then((_) {
         if (!identical(relay, _relay)) return;
@@ -88,6 +93,7 @@ class MediaKitPlayer implements StreamPlayer {
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
     await _relay?.close();
     await _redirects.cancel();
     await _redirected.close();

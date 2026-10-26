@@ -209,6 +209,11 @@ void main() {
     await tester.tap(find.text('Try again'));
     await tester.pump();
     expect(player.opened, ['rtsp://192.168.1.10:554/', 'rtsp://192.168.1.10:554/']);
+    expect(connecting, findsOneWidget);
+    player.ready();
+    await tester.pump();
+    expect(find.text('The camera tried to send you elsewhere'), findsNothing);
+    expect(find.byKey(const Key('video')), findsOneWidget);
   });
 
   testWidgets('tells when the stream fails, without the player message', (tester) async {
