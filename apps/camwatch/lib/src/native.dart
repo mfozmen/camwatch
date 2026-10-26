@@ -31,8 +31,8 @@ class MediaKitPlayer implements StreamPlayer {
       ),
     );
     final native = _player.platform as NativePlayer;
-    // FFmpeg follows an RTSP 3xx on its own, keeping the login for the new
-    // host; stopping on the announcement is the only hook libmpv offers.
+    // Second line behind the relay: should a redirect ever reach FFmpeg, it
+    // follows it on its own with the login in hand, so stop on the announcement.
     _redirects = _player.stream.log.where((line) => line.text.contains('Redirecting to')).listen((
       _,
     ) {
@@ -52,11 +52,25 @@ class MediaKitPlayer implements StreamPlayer {
   late final VideoController _controller;
   late final StreamSubscription<PlayerLog> _redirects;
   final _redirected = StreamController<void>.broadcast();
+  RtspRelay? _relay;
 
-  // Not Player.open: it writes the URL, password included, to a playlist file on disk.
+  // Not Player.open: it writes the URL, password included, to a playlist file
+  // on disk. The camera is reached through the loopback relay, which drops a
+  // redirect before FFmpeg can see it.
   @override
   Future<void> open(String url) async {
-    await _native.command(['loadfile', url, 'replace']);
+    final target = Uri.parse(url);
+    await _relay?.close();
+    final relay = await RtspRelay.start(target.host, target.port);
+    _relay = relay;
+    unawaited(
+      relay.onRedirect.then((_) {
+        if (!identical(relay, _relay)) return;
+        unawaited(_native.command(['stop']));
+        _redirected.add(null);
+      }),
+    );
+    await _native.command(['loadfile', loopbackUrl(url, relay.port), 'replace']);
     await _player.play();
   }
 
@@ -74,6 +88,7 @@ class MediaKitPlayer implements StreamPlayer {
 
   @override
   Future<void> dispose() async {
+    await _relay?.close();
     await _redirects.cancel();
     await _redirected.close();
     await _player.dispose();
