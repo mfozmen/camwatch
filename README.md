@@ -8,7 +8,8 @@
 Find the cameras on your network, see how exposed each one is, and watch the
 ones you can reach. On Android and Windows.
 
-- **Discover:** scans your local network for cameras (open camera ports, ONVIF).
+- **Discover:** scans your local network for cameras (open camera ports, ONVIF),
+  then checks each one for FTP, telnet and HTTPS.
 - **Grade:** flags what makes a camera easy to break into: a stream anyone can
   watch, telnet left open, a web page without HTTPS.
 - **Watch:** plays the RTSP streams it can reach, with your password when needed.

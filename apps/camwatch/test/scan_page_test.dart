@@ -24,6 +24,10 @@ void main() {
 
   final scanButton = find.widgetWithText(FloatingActionButton, 'Scan network');
 
+  test('portLabel names the graded ports too', () {
+    expect([21, 23, 443, 9].map(portLabel), ['FTP 21', 'Telnet 23', 'HTTPS 443', 'Port 9']);
+  });
+
   testWidgets('starts with guidance and a scan button', (tester) async {
     await pump(tester, () async => []);
     expect(find.text('Find the cameras on your network'), findsOneWidget);
