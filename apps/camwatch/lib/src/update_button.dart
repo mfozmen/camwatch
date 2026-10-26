@@ -69,7 +69,6 @@ class _UpdateButtonState extends State<UpdateButton> {
     messenger.showMaterialBanner(
       MaterialBanner(
         margin: EdgeInsets.symmetric(horizontal: margin),
-        elevation: margin > 0 ? 1 : 0,
         leading: const Icon(Icons.system_update_alt),
         content: Text('camwatch ${release.version} is out'),
         actions: [

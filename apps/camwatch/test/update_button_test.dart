@@ -23,6 +23,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
+          body: const Text('body'),
           appBar: AppBar(
             actions: [
               UpdateButton(
@@ -117,6 +118,11 @@ void main() {
     final box = tester.getRect(find.descendant(of: banner, matching: find.byType(Material)).first);
     expect(box.width, lessThanOrEqualTo(600));
     expect(box.center.dx, 640);
+    expect(
+      tester.getTopLeft(find.text('body')).dy,
+      greaterThanOrEqualTo(box.bottom),
+      reason: 'pushes the body down, never covers it',
+    );
   });
 
   testWidgets('Later hides the banner', (tester) async {
