@@ -76,6 +76,8 @@ void main() {
       expect(newerRelease('{}', current: '0.1.0', abi: Abi.windowsX64), isNull);
       final http = release('v0.2.0', assets).replaceAll('https://', 'http://');
       expect(newerRelease(http, current: '0.1.0', abi: Abi.windowsX64), isNull);
+      final elsewhere = release('v0.2.0', assets).replaceAll('github.com', 'github.com.example');
+      expect(newerRelease(elsewhere, current: '0.1.0', abi: Abi.windowsX64), isNull);
     });
   });
 
@@ -83,14 +85,17 @@ void main() {
     late HttpServer server;
     final requests = <HttpRequest>[];
     var status = 200;
+    var location = '';
     final body = release('v0.2.0', assets);
 
     setUp(() async {
       requests.clear();
       status = 200;
+      location = '';
       server = await HttpServer.bind('127.0.0.1', 0);
       server.listen((request) {
         requests.add(request);
+        if (location.isNotEmpty) request.response.headers.set('location', location);
         request.response
           ..statusCode = status
           ..write(body)
@@ -106,10 +111,22 @@ void main() {
       expect(found?.version, '0.2.0');
       expect(requests.single.headers.value('accept'), 'application/vnd.github+json');
       expect(requests.single.method, 'GET');
+      expect(requests.single.uri.query, isEmpty);
+      expect(requests.single.contentLength, lessThanOrEqualTo(0));
     });
 
     test('is null when the newest release is the one running', () async {
       expect(await fetchLatestRelease(api(), current: '0.2.0', abi: Abi.windowsX64), isNull);
+    });
+
+    test('does not follow a redirect: one request, to the API only', () async {
+      status = 302;
+      location = 'http://127.0.0.1:${server.port}/elsewhere';
+      await expectLater(
+        fetchLatestRelease(api(), current: '0.1.0', abi: Abi.windowsX64),
+        throwsA(isA<HttpException>()),
+      );
+      expect(requests, hasLength(1));
     });
 
     test('throws when the API does not answer 200', () async {

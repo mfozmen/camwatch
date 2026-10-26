@@ -27,6 +27,8 @@ Future<Release?> fetchLatestRelease(Uri api, {required String current, required 
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
   try {
     final request = await client.getUrl(api);
+    // A 3xx would re-send the request wherever it points; the API alone may hear from us.
+    request.followRedirects = false;
     request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
     final response = await request.close();
     if (response.statusCode != 200) {
@@ -39,7 +41,7 @@ Future<Release?> fetchLatestRelease(Uri api, {required String current, required 
 }
 
 /// Reads GitHub's release JSON; null unless it is newer than [current] and
-/// carries an https asset built for [abi].
+/// carries an asset built for [abi] served by github.com over https.
 Release? newerRelease(String json, {required String current, required Abi abi}) {
   final suffix = _assetFor[abi];
   if (suffix == null) return null;
@@ -54,7 +56,7 @@ Release? newerRelease(String json, {required String current, required Abi abi}) 
     final link = asset is Map ? asset['browser_download_url'] : null;
     if (name is! String || link is! String || !name.endsWith('-$suffix')) continue;
     final url = Uri.tryParse(link);
-    if (url == null || url.scheme != 'https') return null;
+    if (url == null || url.scheme != 'https' || url.host != 'github.com') return null;
     return Release(tag.substring(1), url);
   }
   return null;
