@@ -12,6 +12,12 @@ const wsDiscoveryPort = 3702;
 /// hundred bytes, anything bigger is not a camera talking.
 const maxProbeMatchBytes = 16 * 1024;
 
+/// Senders kept per scan, the first to answer. A device on the Wi-Fi can
+/// reply from any number of spoofed addresses; the result, and the list
+/// built from it, stay bounded. A flooder can hide a camera's ONVIF address
+/// this way, not the camera, which the port probe still finds.
+const maxSenders = 256;
+
 /// A WS-Discovery Probe for ONVIF network video transmitters.
 String probeMessage() =>
     '<?xml version="1.0" encoding="UTF-8"?>'
@@ -63,7 +69,7 @@ Future<Map<String, String>> discoverOnvif(
     final datagram = socket.receive();
     if (datagram == null || datagram.data.length > maxProbeMatchBytes) return;
     final sender = datagram.address.address;
-    if (!isLocalIpv4(sender)) return;
+    if (!isLocalIpv4(sender) || found.containsKey(sender) || found.length >= maxSenders) return;
     for (final url in parseProbeMatch(utf8.decode(datagram.data, allowMalformed: true))) {
       if (Uri.parse(url).host == sender) found.putIfAbsent(sender, () => url);
     }
