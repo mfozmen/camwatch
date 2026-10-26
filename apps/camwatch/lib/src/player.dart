@@ -8,6 +8,10 @@ abstract interface class StreamPlayer {
 
   /// Fires once a picture is on screen: the stream is live.
   Stream<void> get firstFrame;
+
+  /// Fires when the camera answered with a redirect: the player has stopped
+  /// instead of following it, since the new address could be off the LAN.
+  Stream<void> get redirected;
   Widget get view;
   Future<void> dispose();
 }

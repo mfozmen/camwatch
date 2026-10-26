@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -22,9 +24,23 @@ class MediaKitPlayer implements StreamPlayer {
     // FFmpeg may only nest the protocols RTSP itself needs: a camera's SDP
     // cannot make it fetch http, file or data URLs.
     _player = Player(
-      configuration: const PlayerConfiguration(protocolWhitelist: ['rtsp', 'rtp', 'udp', 'tcp']),
+      configuration: const PlayerConfiguration(
+        protocolWhitelist: ['rtsp', 'rtp', 'udp', 'tcp'],
+        // FFmpeg announces an RTSP redirect at its info level, which mpv
+        // relays as verbose; nothing less chatty carries it. Never print
+        // that stream: it carries the URL, login included.
+        logLevel: MPVLogLevel.v,
+      ),
     );
     final native = _player.platform as NativePlayer;
+    // Second line behind the relay: should a redirect ever reach FFmpeg, it
+    // follows it on its own with the login in hand, so stop on the announcement.
+    _redirects = _player.stream.log.where((line) => line.text.contains('Redirecting to')).listen((
+      _,
+    ) {
+      unawaited(native.command(['stop']));
+      _redirected.add(null);
+    });
     // Interleaved TCP keeps the media on the connection to the camera, so an
     // SDP media address off the LAN is never dialled; no copy of the stream on disk.
     native.setProperty('rtsp-transport', 'tcp');
@@ -36,11 +52,31 @@ class MediaKitPlayer implements StreamPlayer {
   late final Player _player;
   late final NativePlayer _native;
   late final VideoController _controller;
+  late final StreamSubscription<PlayerLog> _redirects;
+  final _redirected = StreamController<void>.broadcast();
+  RtspRelay? _relay;
+  var _disposed = false;
 
-  // Not Player.open: it writes the URL, password included, to a playlist file on disk.
+  // Not Player.open: it writes the URL, password included, to a playlist file
+  // on disk. The camera is reached through the loopback relay, which drops a
+  // redirect before FFmpeg can see it.
   @override
   Future<void> open(String url) async {
-    await _native.command(['loadfile', url, 'replace']);
+    final target = Uri.parse(url);
+    final relay = await RtspRelay.start(target.host, target.port);
+    if (_disposed) return relay.close();
+    // Assign before closing the old one: two opens in flight must not leak a listener.
+    final previous = _relay;
+    _relay = relay;
+    await previous?.close();
+    unawaited(
+      relay.onRedirect.then((_) {
+        if (!identical(relay, _relay)) return;
+        unawaited(_native.command(['stop']));
+        _redirected.add(null);
+      }),
+    );
+    await _native.command(['loadfile', loopbackUrl(url, relay.port), 'replace']);
     await _player.play();
   }
 
@@ -51,10 +87,19 @@ class MediaKitPlayer implements StreamPlayer {
   Stream<void> get firstFrame => _player.stream.width.where((width) => (width ?? 0) > 0);
 
   @override
+  Stream<void> get redirected => _redirected.stream;
+
+  @override
   Widget get view => Video(controller: _controller, controls: null);
 
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    _disposed = true;
+    await _relay?.close();
+    await _redirects.cancel();
+    await _redirected.close();
+    await _player.dispose();
+  }
 }
 
 /// The accepted notice, in the same store as the logins.

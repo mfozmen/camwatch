@@ -41,10 +41,12 @@ class PlayerPage extends StatefulWidget {
 class _PlayerPageState extends State<PlayerPage> {
   late final StreamSubscription<String> _errors;
   late final StreamSubscription<void> _frames;
+  late final StreamSubscription<void> _redirects;
   Timer? _deadline;
   var _connecting = true;
   var _failed = false;
   var _needsPassword = false;
+  var _redirected = false;
   var _graceArmed = false;
   String? _protectedPath;
   Credentials? _credentials;
@@ -65,6 +67,10 @@ class _PlayerPageState extends State<PlayerPage> {
     _frames = widget.player.firstFrame.listen((_) {
       _deadline?.cancel();
       setState(() => _connecting = false);
+    });
+    _redirects = widget.player.redirected.listen((_) {
+      _redirected = true;
+      _fail();
     });
     _open();
   }
@@ -120,6 +126,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _graceArmed = false;
     _connecting = true;
     _failed = false;
+    _redirected = false;
   }
 
   void _play(String url) {
@@ -138,6 +145,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _deadline?.cancel();
     _errors.cancel();
     _frames.cancel();
+    _redirects.cancel();
     widget.player.dispose();
     super.dispose();
   }
@@ -148,6 +156,17 @@ class _PlayerPageState extends State<PlayerPage> {
       icon: const Icon(Icons.refresh),
       label: const Text('Try again'),
     );
+    if (_redirected) {
+      return StatusMessage(
+        icon: Icons.alt_route,
+        iconColor: theme.colorScheme.error,
+        title: 'The camera tried to send you elsewhere',
+        body:
+            'It answered with a redirect, which camwatch never follows: the new address '
+            'could be outside your network. A camera that does this is misconfigured or hostile.',
+        action: tryAgain,
+      );
+    }
     if (_needsPassword) {
       return StatusMessage(
         icon: Icons.lock_outline,

@@ -46,7 +46,10 @@ port watches its stream: camwatch tries the common stream paths and plays the
 first one that needs no password. When every path asks for one, enter the camera's
 username and password. They go into your device's secure storage (the Android
 Keystore, DPAPI on Windows), tied to that address, and are used again the next
-time; they are never written to a file or a log.
+time; they are never written to a file or a log. The player reaches the camera
+through a relay inside the app: a camera that answers with a redirect is cut
+off there, so the stream library never sees the new address, which could be
+outside your network, and never follows it.
 
 ## Only scan networks you own
 
