@@ -32,15 +32,28 @@ const _openStream = Finding(
 const _telnet = Finding(
   Grade.red,
   'Telnet is open',
-  'Telnet sends passwords in plain text and is how most camera botnets get in. '
+  'Telnet sends passwords in plain text and is how camera botnets get in. '
       'Turn it off, or update the firmware if there is no switch.',
 );
 
 const _plainWeb = Finding(
   Grade.amber,
   'The web page has no HTTPS',
-  'Its password crosses the network in plain text. Turn on HTTPS if the camera '
-      'offers it, and never open the page over public Wi-Fi.',
+  'Logins to its web page cross your network unencrypted. Turn on HTTPS if the '
+      'camera offers it.',
+);
+
+const _unchecked = Finding(
+  Grade.amber,
+  'The stream has not been checked yet',
+  'Open the camera once: camwatch then sees whether it asks for a password.',
+);
+
+const _sdk = Finding(
+  Grade.amber,
+  'The vendor SDK port is open',
+  'Port 8000 is a private control channel with a history of holes. Turn it off '
+      'unless a recorder needs it, and keep the firmware current.',
 );
 
 const _ftp = Finding(
@@ -50,7 +63,8 @@ const _ftp = Finding(
 );
 
 /// What makes [device] easy to break into, worst first, given its open ports
-/// and what the stream check found on it.
+/// and what the stream check found on it; [streams] is empty until that check
+/// has run, and a stream never checked is not green.
 List<Finding> findings(Device device, Map<String, PathStatus> streams) {
   final ports = device.openPorts;
   final hasWeb = ports.contains(80) || ports.contains(8080);
@@ -59,6 +73,8 @@ List<Finding> findings(Device device, Map<String, PathStatus> streams) {
     if (ports.contains(23)) _telnet,
     if (hasWeb && !ports.contains(443)) _plainWeb,
     if (ports.contains(21)) _ftp,
+    if (ports.contains(8000)) _sdk,
+    if (device.rtspPort != null && streams.isEmpty) _unchecked,
   ];
 }
 

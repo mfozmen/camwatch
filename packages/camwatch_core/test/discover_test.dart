@@ -76,6 +76,26 @@ void main() {
       ]);
     });
 
+    test('probes the grade ports inside the scanned subnet only', () async {
+      final graded = <String>[];
+      final devices = await discoverDevices(
+        network: () async => (address: '192.168.1.5', prefixLength: 30),
+        ports: (hosts, ports) async {
+          if (ports == gradePorts) graded.addAll(hosts);
+          return {};
+        },
+        onvif: (_) async => {
+          '10.0.0.9': 'http://10.0.0.9/o',
+          '192.168.1.6': 'http://192.168.1.6/o',
+        },
+      );
+      expect(graded, ['192.168.1.6']);
+      expect(devices, [
+        const Device('10.0.0.9', openPorts: [], onvifAddress: 'http://10.0.0.9/o'),
+        const Device('192.168.1.6', openPorts: [], onvifAddress: 'http://192.168.1.6/o'),
+      ]);
+    });
+
     test('a failing scan fails the whole discovery once both have finished', () async {
       final onvifDone = Completer<Map<String, String>>();
       final discovery = discoverDevices(

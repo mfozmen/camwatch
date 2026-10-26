@@ -24,9 +24,14 @@ Future<List<Device>?> discoverDevices({
   return lock(() async {
     final hosts = subnetHosts(lan.address, lan.prefixLength);
     final (openPorts, found) = await (ports(hosts, cameraPorts), onvif(lan.address)).wait;
-    final graded = await ports({...openPorts.keys, ...found.keys}, gradePorts);
+    // A WS-Discovery sender may be off the subnet (a spoofed reply): it is listed, never probed.
+    final inSubnet = hosts.toSet();
+    final graded = await ports({
+      ...openPorts.keys,
+      ...found.keys.where(inSubnet.contains),
+    }, gradePorts);
     final merged = {...openPorts};
-    graded.forEach((host, ports) => merged[host] = [...?merged[host], ...ports]..sort());
+    graded.forEach((host, open) => merged[host] = [...?merged[host], ...open]..sort());
     return mergeDiscovery(merged, found);
   });
 }

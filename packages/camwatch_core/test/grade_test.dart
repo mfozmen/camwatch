@@ -16,8 +16,24 @@ void main() {
       ]);
     });
 
-    test('a stream behind a password is no finding', () {
+    test('a stream behind a password, or none found, is no finding', () {
       expect(findings(device([554]), {'/': PathStatus.needsAuth}), isEmpty);
+      expect(
+        findings(device([554]), {'/': PathStatus.missing, '/live': PathStatus.error}),
+        isEmpty,
+      );
+    });
+
+    test('an RTSP port whose stream was never checked is amber, not green', () {
+      expect(
+        findings(device([554]), {}).single,
+        const Finding(
+          Grade.amber,
+          'The stream has not been checked yet',
+          'Open the camera once: camwatch then sees whether it asks for a password.',
+        ),
+      );
+      expect(findings(device([80, 443]), {}), isEmpty);
     });
 
     test('telnet is red', () {
@@ -26,7 +42,7 @@ void main() {
         const Finding(
           Grade.red,
           'Telnet is open',
-          'Telnet sends passwords in plain text and is how most camera botnets get in. '
+          'Telnet sends passwords in plain text and is how camera botnets get in. '
               'Turn it off, or update the firmware if there is no switch.',
         ),
       );
@@ -36,8 +52,8 @@ void main() {
       const web = Finding(
         Grade.amber,
         'The web page has no HTTPS',
-        'Its password crosses the network in plain text. Turn on HTTPS if the camera '
-            'offers it, and never open the page over public Wi-Fi.',
+        'Logins to its web page cross your network unencrypted. Turn on HTTPS if the '
+            'camera offers it.',
       );
       expect(findings(device([80]), {}), [web]);
       expect(findings(device([8080]), {}), [web]);
@@ -55,11 +71,23 @@ void main() {
       );
     });
 
+    test('the vendor SDK port is amber', () {
+      expect(
+        findings(device([8000]), {}).single,
+        const Finding(
+          Grade.amber,
+          'The vendor SDK port is open',
+          'Port 8000 is a private control channel with a history of holes. Turn it off '
+              'unless a recorder needs it, and keep the firmware current.',
+        ),
+      );
+    });
+
     test('findings come worst first', () {
-      final grades = findings(device([21, 23, 80, 554]), {
+      final grades = findings(device([21, 23, 80, 554, 8000]), {
         '/': PathStatus.open,
       }).map((f) => f.grade);
-      expect(grades, [Grade.red, Grade.red, Grade.amber, Grade.amber]);
+      expect(grades, [Grade.red, Grade.red, Grade.amber, Grade.amber, Grade.amber]);
     });
   });
 
