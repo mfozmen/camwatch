@@ -72,6 +72,22 @@ void main() {
       expect(mdnsPorts(response(body, questions: 1)), [554]);
     });
 
+    test('follows a chain of pointers, as Avahi and Bonjour encode names', () {
+      final local = [...name('local'), ...u16(12), ...u16(1)];
+      final service = [
+        5,
+        ...'_rtsp'.codeUnits,
+        4,
+        ...'_tcp'.codeUnits,
+        ...pointer(12),
+        ...u16(12),
+        ...u16(1),
+      ];
+      final instance = [3, ...'Cam'.codeUnits, ...pointer(12 + local.length)];
+      final body = [...local, ...service, ...srv(instance, 554, pointer(12))];
+      expect(mdnsPorts(response(body, questions: 2)), [554]);
+    });
+
     test('skips an SRV too short to hold a port and reads on', () {
       final short = record(rtspCam, 33, [0, 2]);
       final body = [...short, ...srv(name('B._rtsp._tcp.local'), 554, name('b.local'))];

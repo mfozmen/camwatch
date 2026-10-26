@@ -146,7 +146,6 @@ class _Reader {
     while (true) {
       final length = bytes[cursor++];
       if (length == 0) break;
-      if ((total += length) > 255) throw RangeError('name too long');
       if (length & 0xC0 == 0xC0) {
         if (++jumps > 16) throw RangeError('pointer loop');
         final offset = ((length & 0x3F) << 8) | bytes[cursor++];
@@ -154,6 +153,7 @@ class _Reader {
         cursor = offset;
         continue;
       }
+      if ((total += length) > 255) throw RangeError('name too long');
       labels.add(String.fromCharCodes(bytes.sublist(cursor, cursor + length)));
       cursor += length;
     }
