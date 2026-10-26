@@ -7,7 +7,7 @@ void main() {
   Future<void> pump(
     WidgetTester tester,
     Device device,
-    Map<String, PathStatus>? streams, {
+    ValueNotifier<Map<String, PathStatus>?> streams, {
     VoidCallback? onWatch,
   }) => tester.pumpWidget(
     MaterialApp(
@@ -17,9 +17,12 @@ void main() {
 
   testWidgets('a red device lists every finding with its advice, worst first', (tester) async {
     var watched = false;
-    await pump(tester, const Device('192.168.1.10', openPorts: [23, 80, 554]), {
-      '/': PathStatus.open,
-    }, onWatch: () => watched = true);
+    await pump(
+      tester,
+      const Device('192.168.1.10', openPorts: [23, 80, 554]),
+      ValueNotifier({'/': PathStatus.open}),
+      onWatch: () => watched = true,
+    );
     expect(find.text('192.168.1.10'), findsOneWidget);
     expect(find.text('Exposed'), findsOneWidget);
     expect(
@@ -43,23 +46,35 @@ void main() {
   });
 
   testWidgets('an amber device explains the grade', (tester) async {
-    await pump(tester, const Device('192.168.1.10', openPorts: [80]), const {});
+    await pump(tester, const Device('192.168.1.10', openPorts: [80]), ValueNotifier(const {}));
     expect(find.text('At risk'), findsOneWidget);
     expect(find.text('Easier to break into than it needs to be.'), findsOneWidget);
     expect(find.text('The web page has no HTTPS'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
   });
 
-  testWidgets('a green device says there is nothing to fix', (tester) async {
-    await pump(tester, const Device('192.168.1.10', openPorts: [80, 443]), const {});
+  testWidgets('a green device says there is nothing to fix and when to look again', (tester) async {
+    await pump(tester, const Device('192.168.1.10', openPorts: [80, 443]), ValueNotifier(const {}));
     expect(find.text('No issues found'), findsOneWidget);
     expect(find.text('Nothing to fix on its open ports and stream.'), findsOneWidget);
+    expect(find.textContaining('Grades are only as current as the last scan'), findsOneWidget);
     expect(find.byType(ListTile), findsNothing);
   });
 
-  testWidgets('a device whose stream is still being checked says so', (tester) async {
-    await pump(tester, const Device('192.168.1.10', openPorts: [554]), null);
-    expect(find.text('Checking the stream…'), findsOneWidget);
+  testWidgets('a device whose stream is still being checked has no grade until it does', (
+    tester,
+  ) async {
+    final streams = ValueNotifier<Map<String, PathStatus>?>(null);
+    await pump(tester, const Device('192.168.1.10', openPorts: [23, 554]), streams);
+    expect(find.text('Checking stream…'), findsOneWidget);
+    expect(find.text('Exposed'), findsNothing);
+    expect(find.text('No issues found'), findsNothing);
+    expect(find.text('Telnet is open'), findsOneWidget);
     expect(find.text('The stream has not been checked yet'), findsNothing);
+    streams.value = {'/': PathStatus.open};
+    await tester.pump();
+    expect(find.text('Checking stream…'), findsNothing);
+    expect(find.text('Exposed'), findsOneWidget);
+    expect(find.text('Anyone on the network can watch the stream'), findsOneWidget);
   });
 }

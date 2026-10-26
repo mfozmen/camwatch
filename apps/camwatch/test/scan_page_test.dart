@@ -169,6 +169,8 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.bySemanticsLabel(RegExp('192.168.1.20.*No stream', dotAll: true)), findsOneWidget);
+    // Its own node: a merged card would leave screen readers one tap for two actions.
+    expect(tester.getSemantics(find.byTooltip('Watch')).label, isNot(contains('192.168')));
     await tester.tap(find.text('192.168.1.20'));
     await tester.pumpAndSettle();
     expect(find.text('The web page has no HTTPS'), findsOneWidget);

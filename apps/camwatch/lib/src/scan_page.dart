@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:camwatch_core/camwatch_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'credential_store.dart';
@@ -50,7 +51,7 @@ class ScanPage extends StatefulWidget {
 class _ScanPageState extends State<ScanPage> {
   var _phase = _Phase.idle;
   var _devices = const <Device>[];
-  var _streams = <String, Map<String, PathStatus>>{};
+  var _streams = <String, ValueNotifier<Map<String, PathStatus>?>>{};
 
   Future<void> _scan() async {
     setState(() => _phase = _Phase.scanning);
@@ -59,11 +60,14 @@ class _ScanPageState extends State<ScanPage> {
       if (!mounted) return;
       setState(() {
         _devices = devices ?? const [];
-        _streams = {};
+        _streams = {
+          for (final device in _devices)
+            device.address: ValueNotifier(device.rtspPort == null ? const {} : null),
+        };
         _phase = devices == null ? _Phase.noNetwork : _Phase.done;
       });
       for (final device in _devices) {
-        if (device.rtspPort != null) unawaited(_checkStream(device));
+        if (device.rtspPort != null) unawaited(_checkStream(device, _streams[device.address]!));
       }
     } catch (_) {
       if (!mounted) return;
@@ -71,16 +75,12 @@ class _ScanPageState extends State<ScanPage> {
     }
   }
 
-  Future<void> _checkStream(Device device) async {
-    final scan = _devices;
-    Map<String, PathStatus> streams;
+  Future<void> _checkStream(Device device, ValueNotifier<Map<String, PathStatus>?> into) async {
     try {
-      streams = await widget.findPaths(device.address, device.rtspPort!);
+      into.value = await widget.findPaths(device.address, device.rtspPort!);
     } catch (_) {
-      streams = const {};
+      into.value = const {};
     }
-    if (!mounted || !identical(scan, _devices)) return;
-    setState(() => _streams[device.address] = streams);
   }
 
   void _watch(Device device) => Navigator.of(context).push(
@@ -98,7 +98,7 @@ class _ScanPageState extends State<ScanPage> {
     MaterialPageRoute<void>(
       builder: (_) => ReportPage(
         device: device,
-        streams: _streams[device.address],
+        streams: _streams[device.address]!,
         onWatch: device.rtspPort == null ? null : () => _watch(device),
       ),
     ),
@@ -168,7 +168,7 @@ class _DeviceList extends StatelessWidget {
   });
 
   final List<Device> devices;
-  final Map<String, Map<String, PathStatus>> streams;
+  final Map<String, ValueNotifier<Map<String, PathStatus>?>> streams;
   final void Function(Device) onReport;
   final void Function(Device) onWatch;
 
@@ -193,7 +193,7 @@ class _DeviceList extends StatelessWidget {
         final device = devices[index - 1];
         return _DeviceCard(
           device,
-          streams: device.rtspPort == null ? const {} : streams[device.address],
+          streams: streams[device.address]!,
           onReport: () => onReport(device),
           onWatch: () => onWatch(device),
         );
@@ -202,8 +202,8 @@ class _DeviceList extends StatelessWidget {
   }
 }
 
-/// One device: its grade, address and ports; [streams] is null while the
-/// stream check is still running.
+/// One device: its grade, address and ports, following [streams] as the
+/// stream check completes.
 class _DeviceCard extends StatelessWidget {
   const _DeviceCard(
     this.device, {
@@ -213,7 +213,7 @@ class _DeviceCard extends StatelessWidget {
   });
 
   final Device device;
-  final Map<String, PathStatus>? streams;
+  final ValueListenable<Map<String, PathStatus>?> streams;
   final VoidCallback onReport;
   final VoidCallback onWatch;
 
@@ -222,87 +222,103 @@ class _DeviceCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final playable = device.rtspPort != null;
-    final checking = streams == null;
-    final found = findings(device, streams ?? const {});
-    final grade = checking ? null : gradeOf(found);
-    final color = grade?.color(colors) ?? colors.onSurfaceVariant;
-    final count = found.length;
-    final status = switch (grade) {
-      null => 'Checking stream…',
-      Grade.green => grade.label,
-      _ => '${grade.label} · $count ${count == 1 ? 'finding' : 'findings'}',
-    };
-    return MergeSemantics(
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        clipBehavior: Clip.antiAlias,
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      child: Semantics(
+        onTapHint: 'open the security report',
         child: InkWell(
           onTap: onReport,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withValues(alpha: 0.15),
-                  foregroundColor: color,
-                  child: Icon(grade?.icon ?? Icons.videocam_outlined),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              device.address,
-                              style: text.titleMedium?.copyWith(
-                                fontFeatures: const [FontFeature.tabularFigures()],
+            child: ValueListenableBuilder(
+              valueListenable: streams,
+              builder: (context, streams, _) {
+                final line = gradeLine(device, streams, colors);
+                return Row(
+                  children: [
+                    Expanded(
+                      child: MergeSemantics(
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: line.color.withValues(alpha: 0.15),
+                              foregroundColor: line.color,
+                              child: Icon(line.icon),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          device.address,
+                                          style: text.titleMedium?.copyWith(
+                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                          ),
+                                        ),
+                                      ),
+                                      if (device.onvifAddress != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: colors.tertiaryContainer,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            'ONVIF',
+                                            style: text.labelMedium?.copyWith(
+                                              color: colors.onTertiaryContainer,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    line.label,
+                                    style: text.bodyMedium?.copyWith(
+                                      color: line.color,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    device.openPorts.map(portLabel).join(' · '),
+                                    style: text.bodyMedium?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          if (device.onvifAddress != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: colors.tertiaryContainer,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'ONVIF',
-                                style: text.labelMedium?.copyWith(
-                                  color: colors.onTertiaryContainer,
+                            if (!playable)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Text(
+                                  'No stream',
+                                  style: text.labelMedium?.copyWith(color: colors.onSurfaceVariant),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        device.openPorts.map(portLabel).join(' · '),
-                        style: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(status, style: text.labelMedium?.copyWith(color: color)),
-                    ],
-                  ),
-                ),
-                if (playable)
-                  IconButton(
-                    onPressed: onWatch,
-                    tooltip: 'Watch',
-                    icon: Icon(Icons.play_circle_outline, color: colors.primary),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(
-                      'No stream',
-                      style: text.labelMedium?.copyWith(color: colors.onSurfaceVariant),
                     ),
-                  ),
-              ],
+                    if (playable)
+                      IconButton(
+                        onPressed: onWatch,
+                        tooltip: 'Watch',
+                        icon: Icon(Icons.play_circle_outline, color: colors.primary),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
