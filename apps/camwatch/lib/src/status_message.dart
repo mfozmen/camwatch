@@ -1,5 +1,30 @@
 import 'package:flutter/material.dart';
 
+/// An app bar title: the camera's name with its address underneath, or the
+/// address alone.
+class NamedTitle extends StatelessWidget {
+  const NamedTitle({super.key, required this.name, required this.address});
+
+  final String? name;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme;
+    if (name case final name?) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(name, softWrap: false, overflow: TextOverflow.fade),
+          Text(address, style: style.bodySmall, softWrap: false, overflow: TextOverflow.fade),
+        ],
+      );
+    }
+    return Text(address);
+  }
+}
+
 /// A centred icon, title and one line of guidance: every empty, busy and
 /// failed state in the app looks like this, with an optional [action].
 class StatusMessage extends StatelessWidget {

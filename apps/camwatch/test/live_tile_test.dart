@@ -33,6 +33,8 @@ void main() {
     bool live = true,
     VoidCallback? onTap,
     VoidCallback? onRemove,
+    VoidCallback? onRename,
+    SavedCamera saved = camera,
   }) => tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -40,18 +42,42 @@ void main() {
           width: 300,
           height: 200,
           child: LiveTile(
-            camera: camera,
+            camera: saved,
             live: live,
             newPlayer: newPlayer,
             findPaths: (host, port) async => paths,
             store: store ?? FakeStore(),
             onTap: onTap ?? () {},
             onRemove: onRemove ?? () {},
+            onRename: onRename ?? () {},
           ),
         ),
       ),
     ),
   );
+
+  testWidgets('a named camera shows its name, the address underneath', (tester) async {
+    await pump(tester, saved: const SavedCamera('192.168.1.6', 554, name: 'Garden'));
+    await settle(tester);
+    expect(find.text('Garden'), findsOneWidget);
+    expect(find.text('192.168.1.6'), findsOneWidget);
+    expect(
+      tester.getRect(find.text('192.168.1.6')).top,
+      greaterThanOrEqualTo(tester.getRect(find.text('Garden')).bottom),
+    );
+  });
+
+  testWidgets('Rename sits in the tile menu too', (tester) async {
+    var renamed = false;
+    await pump(tester, onRename: () => renamed = true);
+    await settle(tester);
+    players.single.ready();
+    await tester.tap(find.byTooltip('Options for 192.168.1.6'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+    expect(renamed, isTrue);
+  });
 
   testWidgets('plays the first open path and shows the address', (tester) async {
     await pump(tester);
@@ -141,6 +167,7 @@ void main() {
               store: FakeStore(),
               onTap: () {},
               onRemove: () {},
+              onRename: () {},
             ),
           ),
         ),
@@ -202,6 +229,7 @@ void main() {
             store: FakeStore(),
             onTap: () {},
             onRemove: () {},
+            onRename: () {},
           ),
         ),
       ),

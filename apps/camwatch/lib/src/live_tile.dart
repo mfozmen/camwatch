@@ -25,6 +25,7 @@ class LiveTile extends StatefulWidget {
     required this.store,
     required this.onTap,
     required this.onRemove,
+    required this.onRename,
   });
 
   final SavedCamera camera;
@@ -34,6 +35,7 @@ class LiveTile extends StatefulWidget {
   final CredentialStore store;
   final VoidCallback onTap;
   final VoidCallback onRemove;
+  final VoidCallback onRename;
 
   @override
   State<LiveTile> createState() => _LiveTileState();
@@ -184,14 +186,30 @@ class _LiveTileState extends State<LiveTile> {
                             colors: [Colors.transparent, Colors.black87],
                           ),
                         ),
-                        child: Text(
-                          address,
-                          softWrap: false,
-                          overflow: TextOverflow.fade,
-                          style: text.titleSmall?.copyWith(
-                            color: Colors.white,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.camera.label,
+                              softWrap: false,
+                              overflow: TextOverflow.fade,
+                              style: text.titleSmall?.copyWith(
+                                color: Colors.white,
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                            if (widget.camera.label != address)
+                              Text(
+                                address,
+                                softWrap: false,
+                                overflow: TextOverflow.fade,
+                                style: text.bodySmall?.copyWith(
+                                  color: Colors.white70,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -205,8 +223,11 @@ class _LiveTileState extends State<LiveTile> {
             child: PopupMenuButton<String>(
               tooltip: 'Options for $address',
               iconColor: Colors.white,
-              onSelected: (_) => widget.onRemove(),
-              itemBuilder: (_) => const [PopupMenuItem(value: 'remove', child: Text('Remove'))],
+              onSelected: (choice) => choice == 'rename' ? widget.onRename() : widget.onRemove(),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'rename', child: Text('Rename')),
+                PopupMenuItem(value: 'remove', child: Text('Remove')),
+              ],
             ),
           ),
         ],
