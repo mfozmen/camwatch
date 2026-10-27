@@ -93,7 +93,8 @@ flutter pub get
 ```
 
 Contributions go through pull requests with Conventional Commit titles; every
-line is covered by tests. See [CLAUDE.md](CLAUDE.md) for the full rules.
+line is covered by tests. [CONTRIBUTING.md](CONTRIBUTING.md) has the short
+version of the rules, [CLAUDE.md](CLAUDE.md) the full ones.
 
 ## License
 
