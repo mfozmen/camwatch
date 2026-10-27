@@ -553,20 +553,20 @@ class _DeviceCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          device.openPorts.map(portLabel).join(' · '),
-                                          style: text.bodyMedium?.copyWith(
-                                            color: colors.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ),
-                                      if (device.onvifAddress != null) const _OnvifBadge(),
-                                    ],
+                                  Text(
+                                    device.openPorts.map(portLabel).join(' · '),
+                                    style: text.bodyMedium?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                    ),
                                   ),
+                                  // Its own row: beside the ports it squeezed them on a phone.
+                                  if (device.onvifAddress != null) ...[
+                                    const SizedBox(height: 4),
+                                    const Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: _OnvifBadge(),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -601,7 +601,6 @@ class _OnvifBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.tertiaryContainer,

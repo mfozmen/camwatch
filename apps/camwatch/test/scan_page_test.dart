@@ -373,6 +373,34 @@ void main() {
       expect(grade.height, lessThan(30), reason: 'the grade line never wraps');
     });
 
+    testWidgets('the busiest card keeps its ports to two lines on a phone', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pump(
+        tester,
+        () async => const [
+          Device(
+            '192.168.100.254',
+            openPorts: [21, 23, 80, 554, 37777],
+            onvifAddress: 'http://192.168.100.254/o',
+          ),
+        ],
+        saved: FakeCameraStore(const [SavedCamera('192.168.100.254', 554, name: 'Garden')]),
+      );
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      final ports = tester.getRect(find.textContaining('FTP 21'));
+      expect(ports.height, lessThan(45), reason: 'two lines of bodyMedium at most');
+      final badge = tester.getRect(find.text('ONVIF'));
+      expect(
+        badge.top,
+        greaterThanOrEqualTo(ports.bottom),
+        reason: 'the badge sits under the ports',
+      );
+      expect(tester.getRect(find.byType(Card).first).height, lessThan(150));
+    });
+
     testWidgets('a device without a stream cannot be saved', (tester) async {
       await pump(
         tester,
