@@ -54,6 +54,9 @@ class _UpdateButtonState extends State<UpdateButton> {
     Release? release;
     try {
       release = await widget.check();
+    } on GitHubBusy {
+      if (!quiet) _say('GitHub is busy, try again later', 'Retry', _tap);
+      return;
     } catch (_) {
       if (!quiet) _say('Could not reach github.com', 'Retry', _tap);
       return;

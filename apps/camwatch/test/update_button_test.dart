@@ -155,6 +155,15 @@ void main() {
     expect(find.text('Could not reach github.com'), findsOneWidget);
   });
 
+  testWidgets('a busy GitHub is named, with Retry', (tester) async {
+    await pump(tester, consent: FakeConsent(), check: () async => throw GitHubBusy());
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('GitHub is busy, try again later'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+  });
+
   testWidgets('a broken store counts as not asked yet', (tester) async {
     final consent = FakeConsent()..error = Exception('no keystore');
     final log = await pump(tester, consent: consent);
