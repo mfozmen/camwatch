@@ -27,9 +27,13 @@ class PlayerPage extends StatefulWidget {
     required this.player,
     required this.findPaths,
     required this.store,
+    this.name,
   });
 
   final Device device;
+
+  /// What the user calls the camera, shown over the address when set.
+  final String? name;
   final StreamPlayer player;
   final FindPaths findPaths;
   final CredentialStore store;
@@ -220,7 +224,20 @@ class _PlayerPageState extends State<PlayerPage> {
       child: Scaffold(
         backgroundColor: Colors.black,
         extendBodyBehindAppBar: true,
-        appBar: AppBar(backgroundColor: Colors.transparent, title: Text(_host)),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          // A scrim under the title, so a bright frame never swallows it.
+          flexibleSpace: const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black54, Colors.transparent],
+              ),
+            ),
+          ),
+          title: NamedTitle(name: widget.name, address: _host),
+        ),
         body: Center(
           child: _failed
               ? _failure(dark)

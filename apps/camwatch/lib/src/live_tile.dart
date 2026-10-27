@@ -25,6 +25,7 @@ class LiveTile extends StatefulWidget {
     required this.store,
     required this.onTap,
     required this.onRemove,
+    required this.onRename,
   });
 
   final SavedCamera camera;
@@ -34,6 +35,7 @@ class LiveTile extends StatefulWidget {
   final CredentialStore store;
   final VoidCallback onTap;
   final VoidCallback onRemove;
+  final VoidCallback onRename;
 
   @override
   State<LiveTile> createState() => _LiveTileState();
@@ -175,23 +177,41 @@ class _LiveTileState extends State<LiveTile> {
                       alignment: Alignment.bottomCenter,
                       child: Container(
                         height: _barHeight + 24,
-                        padding: const EdgeInsets.fromLTRB(12, 24, 48, 0),
-                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.fromLTRB(12, 24, 48, 8),
+                        alignment: Alignment.bottomLeft,
+                        // Solid under the text, so a bright daytime frame never washes it out.
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black87],
+                            colors: [Colors.transparent, Colors.black54, Colors.black87],
+                            stops: [0, 0.375, 1],
                           ),
                         ),
-                        child: Text(
-                          address,
-                          softWrap: false,
-                          overflow: TextOverflow.fade,
-                          style: text.titleSmall?.copyWith(
-                            color: Colors.white,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.camera.label,
+                              softWrap: false,
+                              overflow: TextOverflow.fade,
+                              style: text.titleSmall?.copyWith(
+                                color: Colors.white,
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                            if (widget.camera.label != address)
+                              Text(
+                                address,
+                                softWrap: false,
+                                overflow: TextOverflow.fade,
+                                style: text.bodySmall?.copyWith(
+                                  color: Colors.white70,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -203,10 +223,16 @@ class _LiveTileState extends State<LiveTile> {
           Align(
             alignment: Alignment.bottomRight,
             child: PopupMenuButton<String>(
-              tooltip: 'Options for $address',
+              tooltip: 'Options for ${widget.camera.label}',
               iconColor: Colors.white,
-              onSelected: (_) => widget.onRemove(),
-              itemBuilder: (_) => const [PopupMenuItem(value: 'remove', child: Text('Remove'))],
+              onSelected: (choice) => choice == 'rename' ? widget.onRename() : widget.onRemove(),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'rename',
+                  child: Text(widget.camera.name.isEmpty ? 'Name…' : 'Rename…'),
+                ),
+                const PopupMenuItem(value: 'remove', child: Text('Remove')),
+              ],
             ),
           ),
         ],
@@ -215,8 +241,9 @@ class _LiveTileState extends State<LiveTile> {
   }
 }
 
-/// The label bar along the tile's bottom edge; the hint is centred above it.
-const _barHeight = 40.0;
+/// The label bar along the tile's bottom edge, as tall as the menu button;
+/// the hint is centred above it.
+const _barHeight = 48.0;
 
 class _Hint extends StatelessWidget {
   const _Hint(this.icon, this.label);

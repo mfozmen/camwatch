@@ -8,6 +8,7 @@ import 'camera_store.dart';
 import 'consent_store.dart';
 import 'credential_store.dart';
 import 'live_tile.dart';
+import 'name_dialog.dart';
 
 import 'player.dart';
 import 'player_page.dart';
@@ -106,11 +107,28 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   }
 
   void _toggleSaved(Device device) {
-    final camera = SavedCamera(device.address, device.rtspPort!);
-    final kept = _saved.contains(camera)
-        ? _saved.where((c) => c != camera).toList()
-        : [..._saved, camera];
-    _keep(kept);
+    final kept = _savedFor(device);
+    _keep(
+      kept == null
+          ? [..._saved, SavedCamera(device.address, device.rtspPort!)]
+          : _saved.where((c) => c != kept).toList(),
+    );
+  }
+
+  /// The saved entry for [device], by address and port; the name is not a key.
+  SavedCamera? _savedFor(Device device) =>
+      _saved.where((c) => c.address == device.address && c.port == device.rtspPort).firstOrNull;
+
+  Future<void> _rename(SavedCamera camera) async {
+    final name = await askName(context, current: camera.name, address: camera.address);
+    if (name == null) return;
+    await _keep([for (final c in _saved) c == camera ? camera.named(name) : c]);
+  }
+
+  /// The name the user gave [device], if it is saved under one.
+  String? _nameOf(Device device) {
+    final kept = _savedFor(device);
+    return kept == null || kept.label == device.address ? null : kept.label;
   }
 
   Future<void> _remove(SavedCamera camera) async {
@@ -188,6 +206,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       MaterialPageRoute<void>(
         builder: (_) => PlayerPage(
           device: device,
+          name: _nameOf(device),
           player: widget.newPlayer(),
           findPaths: widget.findPaths,
           store: widget.store,
@@ -201,6 +220,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     MaterialPageRoute<void>(
       builder: (_) => ReportPage(
         device: device,
+        name: _nameOf(device),
         streams: _streams[device.address]!,
         onWatch: device.rtspPort == null ? null : () => _watch(device),
       ),
@@ -243,6 +263,7 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
       store: widget.store,
       onWatch: (camera) => _watch(camera.device),
       onRemove: _remove,
+      onRename: _rename,
     ),
     _Phase.idle => const StatusMessage(
       icon: Icons.videocam_outlined,
@@ -294,6 +315,7 @@ class _SavedGrid extends StatelessWidget {
     required this.store,
     required this.onWatch,
     required this.onRemove,
+    required this.onRename,
   });
 
   final List<SavedCamera> cameras;
@@ -303,6 +325,7 @@ class _SavedGrid extends StatelessWidget {
   final CredentialStore store;
   final void Function(SavedCamera) onWatch;
   final void Function(SavedCamera) onRemove;
+  final void Function(SavedCamera) onRename;
 
   @override
   Widget build(BuildContext context) {
@@ -349,6 +372,7 @@ class _SavedGrid extends StatelessWidget {
                 store: store,
                 onTap: () => onWatch(camera),
                 onRemove: () => onRemove(camera),
+                onRename: () => onRename(camera),
               );
             }),
           ),
@@ -418,10 +442,14 @@ class _DeviceList extends StatelessWidget {
           );
         }
         final device = devices[index - 1];
+        final kept = saved
+            .where((c) => c.address == device.address && c.port == device.rtspPort)
+            .firstOrNull;
         return _DeviceCard(
           device,
           streams: streams[device.address]!,
-          saved: saved.any((c) => c.address == device.address && c.port == device.rtspPort),
+          saved: kept != null,
+          name: kept == null || kept.label == device.address ? null : kept.label,
           onReport: () => onReport(device),
           onWatch: () => onWatch(device),
           onSave: () => onSave(device),
@@ -438,6 +466,7 @@ class _DeviceCard extends StatelessWidget {
     this.device, {
     required this.streams,
     required this.saved,
+    this.name,
     required this.onReport,
     required this.onWatch,
     required this.onSave,
@@ -446,6 +475,7 @@ class _DeviceCard extends StatelessWidget {
   final Device device;
   final ValueListenable<Map<String, PathStatus>?> streams;
   final bool saved;
+  final String? name;
   final VoidCallback onReport;
   final VoidCallback onWatch;
   final VoidCallback onSave;
@@ -495,13 +525,23 @@ class _DeviceCard extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    device.address,
+                                    name ?? device.address,
                                     softWrap: false,
                                     overflow: TextOverflow.fade,
                                     style: text.titleMedium?.copyWith(
                                       fontFeatures: const [FontFeature.tabularFigures()],
                                     ),
                                   ),
+                                  if (name != null)
+                                    Text(
+                                      device.address,
+                                      softWrap: false,
+                                      overflow: TextOverflow.fade,
+                                      style: text.bodySmall?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                        fontFeatures: const [FontFeature.tabularFigures()],
+                                      ),
+                                    ),
                                   const SizedBox(height: 4),
                                   Text(
                                     line.label,

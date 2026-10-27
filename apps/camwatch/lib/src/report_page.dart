@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'scan_page.dart';
+import 'status_message.dart';
 
 /// How a [Grade] reads and looks: a word and an icon shape next to the
 /// colour, so colour is never the only cue.
@@ -64,16 +65,27 @@ extension GradeLook on Grade {
 /// the stream check completes. [onWatch] opens the player, absent for a
 /// device without RTSP.
 class ReportPage extends StatelessWidget {
-  const ReportPage({super.key, required this.device, required this.streams, this.onWatch});
+  const ReportPage({
+    super.key,
+    required this.device,
+    required this.streams,
+    this.name,
+    this.onWatch,
+  });
 
   final Device device;
   final ValueListenable<Map<String, PathStatus>?> streams;
+
+  /// What the user calls the camera, shown over the address when set.
+  final String? name;
   final VoidCallback? onWatch;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(device.address)),
+      appBar: AppBar(
+        title: NamedTitle(name: name, address: device.address),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),

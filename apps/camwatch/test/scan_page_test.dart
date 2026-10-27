@@ -228,6 +228,82 @@ void main() {
       expect(tester.getRect(find.byType(LiveTile).at(3)).top, wide.top, reason: 'one row of four');
     });
 
+    testWidgets('a camera is named from the tile menu and the name follows it', (tester) async {
+      final store = FakeCameraStore(const [camera]);
+      await pump(
+        tester,
+        () async => const [
+          Device('192.168.1.6', openPorts: [554]),
+        ],
+        saved: store,
+        newPlayer: newPlayer,
+      );
+      await settle(tester);
+      await ready(tester);
+      await tester.tap(find.byTooltip('Options for 192.168.1.6'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Name…'));
+      await tester.pumpAndSettle();
+      expect(find.text('Name this camera'), findsOneWidget);
+      expect(find.text('Leave empty to show 192.168.1.6.'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), ' Garden ');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(store.cameras, [const SavedCamera('192.168.1.6', 554, name: 'Garden')]);
+      expect(find.text('Garden'), findsOneWidget);
+      await tester.tap(find.text('Garden'));
+      await tester.pumpAndSettle();
+      expect(find.text('Garden'), findsOneWidget, reason: 'the player page carries the name');
+      expect(find.text('192.168.1.6'), findsOneWidget);
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      await settle(tester);
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Garden'), findsOneWidget, reason: 'the device card carries it');
+      expect(find.text('192.168.1.6'), findsOneWidget);
+      await tester.tap(find.text('Garden'));
+      await tester.pumpAndSettle();
+      expect(find.text('Garden'), findsOneWidget, reason: 'so does the report');
+      expect(find.text('192.168.1.6'), findsOneWidget);
+    });
+
+    testWidgets('an empty name falls back to the address', (tester) async {
+      final store = FakeCameraStore(const [SavedCamera('192.168.1.6', 554, name: 'Garden')]);
+      await pump(tester, () async => [], saved: store, newPlayer: newPlayer);
+      await settle(tester);
+      await ready(tester);
+      await tester.tap(find.byTooltip('Options for Garden'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rename…'));
+      await tester.pumpAndSettle();
+      expect(find.text('Rename camera'), findsOneWidget);
+      expect(tester.widget<TextField>(find.byType(TextField)).controller?.text, 'Garden');
+      await tester.enterText(find.byType(TextField), '');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(store.cameras, [camera]);
+      expect(find.text('Garden'), findsNothing);
+    });
+
+    testWidgets('a named camera is unsaved from its device card, not duplicated', (tester) async {
+      final store = FakeCameraStore(const [SavedCamera('192.168.1.6', 554, name: 'Garden')]);
+      await pump(
+        tester,
+        () async => const [
+          Device('192.168.1.6', openPorts: [554]),
+        ],
+        saved: store,
+        newPlayer: newPlayer,
+      );
+      await settle(tester);
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Remove from saved'));
+      await tester.pumpAndSettle();
+      expect(store.cameras, isEmpty);
+    });
+
     testWidgets('can be removed from the tile menu, and put back with Undo', (tester) async {
       final store = FakeCameraStore(const [camera]);
       await pump(tester, () async => [], saved: store, newPlayer: newPlayer);

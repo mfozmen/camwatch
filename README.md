@@ -57,8 +57,11 @@ outside your network, and never follows it.
 The bookmark on a device with a stream saves it. Saved cameras fill a live grid
 when you open the app, before any scan: each tile plays its stream (with the
 kept login when the camera asks for one, a lock when there is none yet), a tap
-opens it full screen, and the tile's menu removes it (**Undo** is offered for a
-moment). The grid streams only while it is on screen: opening a camera or
+opens it full screen, and the tile's menu renames or removes it (**Undo** is
+offered for a moment after removing). A name you give a camera is shown in
+place of its address on the tile, the device card, the report and the player,
+with the address underneath; leave the name empty to go back to the address.
+The grid streams only while it is on screen: opening a camera or
 leaving the app stops every tile. The list is kept on your device only, next
 to the logins; a scan shows the found devices again, with the saved ones marked.
 
