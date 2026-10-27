@@ -117,7 +117,12 @@ Future<Release?> checkForUpdate() =>
 Future<File> downloadUpdate(Release release, {void Function(int, int?)? onProgress}) async {
   final folder = await Directory.systemTemp.createTemp('camwatch-update-');
   try {
-    return await downloadVerified(release, into: folder, onProgress: onProgress);
+    return await downloadVerified(
+      release,
+      into: folder,
+      publicKey: updatePublicKey,
+      onProgress: onProgress,
+    );
   } catch (_) {
     await folder.delete(recursive: true);
     rethrow;

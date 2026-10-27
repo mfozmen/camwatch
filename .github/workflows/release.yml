@@ -218,13 +218,76 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Signs every .sha256 the builds produced with the Ed25519 key in
+  # CAMWATCH_UPDATE_SIGNING_KEY (a PEM), the app's proof that an update is
+  # ours. Its own job, with no checkout and no pub: the key is never in a
+  # process that runs the repository's or its dependencies' code.
+  sign:
+    name: Sign the digests
+    needs: [release, app-windows, app-android]
+    if: ${{ !cancelled() && needs.release.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: app-*
+          path: dist
+          merge-multiple: true
+      # Only the files a release is made of, named from the version, and the
+      # digests are computed here: the builds' own .sha256 files are replaced,
+      # never signed, so a build job cannot get a line of its choosing signed.
+      - name: Sign
+        env:
+          SIGNING_KEY: ${{ secrets.CAMWATCH_UPDATE_SIGNING_KEY }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then echo "::error::CAMWATCH_UPDATE_SIGNING_KEY is not set"; exit 1; fi
+          [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::odd version '$VERSION'"; exit 1; }
+          expected=(
+            "camwatch-$VERSION-windows-x64-setup.exe"
+            "camwatch-$VERSION-android.apk"
+            "camwatch-$VERSION-android-arm64-v8a.apk"
+            "camwatch-$VERSION-android-armeabi-v7a.apk"
+            "camwatch-$VERSION-android-x86_64.apk"
+          )
+          cd dist
+          for f in *; do
+            case "$f" in *.sha256) rm -f "$f"; continue;; esac
+            printf '%s\n' "${expected[@]}" | grep -qxF -- "$f" || { echo "::error::unexpected file $f"; exit 1; }
+          done
+          printf '%s\n' "$SIGNING_KEY" > "$RUNNER_TEMP/signing.pem"
+          trap 'rm -f "$RUNNER_TEMP/signing.pem"' EXIT
+          # The public half the app pins: a secret that is not its private half fails here, not on every user's update.
+          printf '%s\n' '-----BEGIN PUBLIC KEY-----' 'MCowBQYDK2VwAyEAWG4bUpOqRriz78Mcad5nyCJ8s1DmVzfUpA7JuUzEIjk=' '-----END PUBLIC KEY-----' > "$RUNNER_TEMP/public.pem"
+          for asset in "${expected[@]}"; do
+            [ -f "$asset" ] || { echo "::error::$asset was not built"; exit 1; }
+            sha256sum "$asset" > "$asset.sha256"
+            openssl pkeyutl -sign -inkey "$RUNNER_TEMP/signing.pem" -rawin -in "$asset.sha256" | base64 -w0 > "$asset.sha256.sig"
+            echo >> "$asset.sha256.sig"
+            base64 -d "$asset.sha256.sig" > "$RUNNER_TEMP/sig.bin"
+            openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/public.pem" -rawin -in "$asset.sha256" -sigfile "$RUNNER_TEMP/sig.bin" >/dev/null || { echo "::error::$asset.sha256 does not verify with the app's key"; exit 1; }
+            echo "signed $asset.sha256"
+          done
+          ls -l *.sha256 *.sig
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: signatures
+          path: |
+            dist/*.sha256
+            dist/*.sig
+          if-no-files-found: error
+          retention-days: 1
+
   # The only job besides `release` that writes: no checkout, no build, nothing of
   # the repository runs here. It attaches what the builds uploaded, and runs
   # even when one platform failed, so the files that built are there; it
   # publishes the release only when all did.
   attach:
     name: Attach to the release
-    needs: [release, app-windows, app-android]
+    needs: [release, app-windows, app-android, sign]
     if: ${{ !cancelled() && needs.release.outputs.released == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -233,9 +296,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          pattern: app-*
+          pattern: "{app-*,signatures}"
           path: dist
           merge-multiple: true
+      # The signatures artifact carries the digests the sign job computed; they
+      # land after the builds' files, so --clobber keeps the signed ones.
       - name: Upload
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -244,7 +309,7 @@ jobs:
       # Latest only when no newer release is out: a draft rebuilt after a
       # newer one shipped never takes "latest" from it.
       - name: Publish
-        if: needs.app-windows.result == 'success' && needs.app-android.result == 'success'
+        if: needs.app-windows.result == 'success' && needs.app-android.result == 'success' && needs.sign.result == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release.outputs.tag }}

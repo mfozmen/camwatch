@@ -3,29 +3,46 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart';
 
 import 'update.dart';
 
 /// The downloaded file's SHA-256 is not the one the release published.
 class DigestMismatch implements Exception {}
 
+/// The digest file was not signed by the release signing key: whatever
+/// served it, it is not a camwatch release.
+class SignatureMismatch implements Exception {}
+
+/// The release signing key's public half; its private half lives only in
+/// the release workflow's secret. Rotating it orphans every shipped app.
+final updatePublicKey = base64.decode('WG4bUpOqRriz78Mcad5nyCJ8s1DmVzfUpA7JuUzEIjk=');
+
 const _downloads = 'https://github.com/mfozmen/camwatch/releases/download/';
 const _loopback = '127.0.0.1';
-final _hex64 = RegExp(r'^[0-9a-fA-F]{64}');
+final _digestLine = RegExp(r'^([0-9a-fA-F]{64})(?:\s+\*?(\S+))?');
 
-/// The digest in a `.sha256` file as `sha256sum` writes it (`<hex>  <name>`),
-/// lower-cased; null when the text is not one.
-String? parseDigest(String text) => _hex64.firstMatch(text.trim())?.group(0)?.toLowerCase();
+/// The digest in a `.sha256` file as `sha256sum` writes it (`<hex>  <name>`):
+/// the hex lower-cased and the file it names ('' when it names none); null
+/// when the text is not one.
+(String, String)? parseDigest(String text) {
+  final match = _digestLine.firstMatch(text.trim());
+  if (match == null) return null;
+  return (match.group(1)!.toLowerCase(), match.group(2) ?? '');
+}
 
 /// Downloads [release]'s asset into [into], named as on the release page,
-/// after fetching its `.sha256` next to it; the file is deleted and
-/// [DigestMismatch] thrown when the two disagree. Only this repository's
-/// release files are fetched (and 127.0.0.1 for tests). [onProgress] gets
-/// bytes so far and the total when known; a transfer that stays silent
-/// for [idle], or grows past [maxBytes], is given up.
+/// after fetching its `.sha256` and the signature of that file next to it:
+/// [SignatureMismatch] when [publicKey] does not vouch for the digest, so
+/// the asset is never fetched; the file is deleted and [DigestMismatch]
+/// thrown when it does not match the digest. Only this repository's release
+/// files are fetched (and 127.0.0.1 for tests). [onProgress] gets bytes so
+/// far and the total when known; a transfer that stays silent for [idle],
+/// or grows past [maxBytes], is given up.
 Future<File> downloadVerified(
   Release release, {
   required Directory into,
+  required List<int> publicKey,
   void Function(int received, int? total)? onProgress,
   Duration idle = const Duration(seconds: 30),
   int maxBytes = 256 << 20,
@@ -37,8 +54,15 @@ Future<File> downloadVerified(
   final client = HttpClient();
   final file = File('${into.path}${Platform.pathSeparator}${url.pathSegments.last}');
   try {
-    final expected = parseDigest(await _text(client, release.digest, idle));
-    if (expected == null) throw HttpException('no digest for $url', uri: release.digest);
+    final signature = await _small(client, release.signature, idle);
+    final digestFile = await _small(client, release.digest, idle);
+    if (!await _signed(digestFile, signature, publicKey)) throw SignatureMismatch();
+    final parsed = parseDigest(utf8.decode(digestFile, allowMalformed: true));
+    if (parsed == null) throw HttpException('no digest for $url', uri: release.digest);
+    final (expected, named) = parsed;
+    // The signed line names its file, version included: a signature for
+    // another release's file, served in this one's place, proves nothing here.
+    if (named != url.pathSegments.last) throw SignatureMismatch();
     final response = await _open(client, url, idle);
     final total = response.contentLength < 0 ? null : response.contentLength;
     final sink = file.openWrite();
@@ -100,13 +124,29 @@ bool trustedRedirect(Uri target, Uri origin) {
       (target.host == 'github.com' || target.host.endsWith('.githubusercontent.com'));
 }
 
-Future<String> _text(HttpClient client, Uri url, Duration idle) async {
+/// Whether [signature] (base64 text) is [publicKey]'s Ed25519 signature of
+/// [message], the digest file's exact bytes.
+Future<bool> _signed(List<int> message, List<int> signature, List<int> publicKey) async {
+  List<int> bytes;
+  try {
+    bytes = base64.decode(utf8.decode(signature).trim());
+  } on FormatException {
+    return false;
+  }
+  if (bytes.length != 64) return false;
+  return Ed25519().verify(
+    message,
+    signature: Signature(bytes, publicKey: SimplePublicKey(publicKey, type: KeyPairType.ed25519)),
+  );
+}
+
+Future<List<int>> _small(HttpClient client, Uri url, Duration idle) async {
   final response = await _open(client, url, idle);
-  // A digest file is one line; anything longer is not one.
+  // A digest or a signature is one line; anything longer is not one.
   final bytes = <int>[];
   await for (final chunk in response.timeout(idle)) {
     bytes.addAll(chunk);
-    if (bytes.length > 1024) throw HttpException('digest file too long', uri: url);
+    if (bytes.length > 1024) throw HttpException('too long for $url', uri: url);
   }
-  return utf8.decode(bytes, allowMalformed: true);
+  return bytes;
 }

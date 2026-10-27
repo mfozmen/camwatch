@@ -233,6 +233,7 @@ void main() {
       tester,
     ) async {
       for (final (error, text) in [
+        (SignatureMismatch(), 'The update is not signed by camwatch'),
         (DigestMismatch(), 'The download was damaged, try again'),
         (Exception('offline'), 'Could not download the update'),
       ]) {

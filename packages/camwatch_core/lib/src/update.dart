@@ -10,6 +10,9 @@ class Release {
 
   /// The SHA-256 the release workflow publishes next to every file.
   Uri get digest => Uri.parse('$download.sha256');
+
+  /// The Ed25519 signature of that digest file, by the release signing key.
+  Uri get signature => Uri.parse('$download.sha256.sig');
 }
 
 /// GitHub answered 403 or 429: the shared address has spent its budget for
