@@ -54,9 +54,12 @@ through a relay inside the app: a camera that answers with a redirect is cut
 off there, so the stream library never sees the new address, which could be
 outside your network, and never follows it.
 
-The bookmark on a device with a stream saves it. Saved cameras are listed when
-you open the app, before any scan, each with a play button and a remove button
-(**Undo** is offered for a moment). The list is kept on your device only, next
+The bookmark on a device with a stream saves it. Saved cameras fill a live grid
+when you open the app, before any scan: each tile plays its stream (with the
+kept login when the camera asks for one, a lock when there is none yet), a tap
+opens it full screen, and the tile's menu removes it (**Undo** is offered for a
+moment). The grid streams only while it is on screen: opening a camera or
+leaving the app stops every tile. The list is kept on your device only, next
 to the logins; a scan shows the found devices again, with the saved ones marked.
 
 Until camwatch is in the app stores, new versions come from the

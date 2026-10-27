@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:camwatch/src/live_tile.dart';
+import 'package:camwatch/src/player.dart';
 import 'package:camwatch/src/player_page.dart';
 import 'package:camwatch/src/scan_page.dart';
 import 'package:camwatch_core/camwatch_core.dart';
@@ -26,11 +28,12 @@ void main() {
     Future<List<Device>?> Function() scan, {
     FakeConsent? consent,
     FakeCameraStore? saved,
+    StreamPlayer Function()? newPlayer,
   }) => tester.pumpWidget(
     MaterialApp(
       home: ScanPage(
         scan: scan,
-        newPlayer: () => player,
+        newPlayer: newPlayer ?? () => player,
         findPaths: (host, port) async => {'/': PathStatus.open},
         store: FakeStore(),
         consent: consent ?? FakeConsent(),
@@ -129,40 +132,118 @@ void main() {
 
   group('saved cameras', () {
     const camera = SavedCamera('192.168.1.6', 554);
-    final remove = find.byTooltip('Remove');
+    const other = SavedCamera('192.168.1.7', 8554);
+    final players = <FakePlayer>[];
+    FakePlayer newPlayer() {
+      final fresh = FakePlayer();
+      players.add(fresh);
+      return fresh;
+    }
 
-    testWidgets('are listed before any scan and can be watched', (tester) async {
-      await pump(tester, () async => [], saved: FakeCameraStore(const [camera]));
-      await tester.pumpAndSettle();
+    setUp(players.clear);
+
+    /// Two frames, never pumpAndSettle: a live tile's spinner never settles.
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump();
+    }
+
+    Future<void> ready(WidgetTester tester) async {
+      for (final player in players) {
+        player.ready();
+      }
+      await settle(tester);
+    }
+
+    testWidgets('stream in a grid before any scan, a tile opens the player', (tester) async {
+      await pump(
+        tester,
+        () async => [],
+        saved: FakeCameraStore(const [camera, other]),
+        newPlayer: newPlayer,
+      );
+      await settle(tester);
       expect(find.text('Saved cameras'), findsOneWidget);
       expect(find.text('Kept from earlier scans. Scan to check them again.'), findsOneWidget);
-      expect(find.text('192.168.1.6'), findsOneWidget);
+      expect(find.byType(LiveTile), findsNWidgets(2));
       expect(find.text('Find the cameras on your network'), findsNothing);
       expect(scanButton, findsOneWidget);
-      await tester.tap(find.byTooltip('Watch'));
+      await settle(tester);
+      expect(players.map((p) => p.opened.single), [
+        'rtsp://192.168.1.6:554/',
+        'rtsp://192.168.1.7:8554/',
+      ]);
+      await ready(tester);
+      await tester.tap(find.text('192.168.1.6'));
       await tester.pumpAndSettle();
       expect(find.byType(PlayerPage), findsOneWidget);
       expect(tester.widget<PlayerPage>(find.byType(PlayerPage)).device.rtspPort, 554);
+      expect(players.take(2).map((p) => p.disposed), [true, true], reason: 'hidden grid stops');
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('192.168.1.6'));
-      await tester.pumpAndSettle();
-      expect(find.byType(PlayerPage), findsOneWidget, reason: 'the card itself watches');
+      await settle(tester);
+      expect(players, hasLength(5), reason: 'the player page took one, the grid two more');
+      expect(players.skip(3).map((p) => p.opened.single), [
+        'rtsp://192.168.1.6:554/',
+        'rtsp://192.168.1.7:8554/',
+      ]);
     });
 
-    testWidgets('can be removed, and put back with Undo', (tester) async {
+    testWidgets('the grid stops while the app is in the background', (tester) async {
+      await pump(
+        tester,
+        () async => [],
+        saved: FakeCameraStore(const [camera]),
+        newPlayer: newPlayer,
+      );
+      await settle(tester);
+      expect(players, hasLength(1));
+      // Visible but not the front window, on Windows every click elsewhere: still live.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await settle(tester);
+      expect(players.single.disposed, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await settle(tester);
+      expect(players.single.disposed, isTrue);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await settle(tester);
+      expect(players, hasLength(2));
+    });
+
+    testWidgets('fills the width: two tiles across on a phone, four on a wide window', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final four = [for (var i = 1; i <= 4; i++) SavedCamera('192.168.1.$i', 554)];
+      await pump(tester, () async => [], saved: FakeCameraStore(four), newPlayer: newPlayer);
+      await settle(tester);
+      final phone = tester.getRect(find.byType(LiveTile).first);
+      expect(phone.width, closeTo((390 - 32 - 8) / 2, 1));
+      expect(tester.getRect(find.byType(LiveTile).at(1)).top, phone.top, reason: 'same row');
+      tester.view.physicalSize = const Size(1280, 800);
+      await settle(tester);
+      final wide = tester.getRect(find.byType(LiveTile).first);
+      expect(tester.getRect(find.byType(LiveTile).at(3)).top, wide.top, reason: 'one row of four');
+    });
+
+    testWidgets('can be removed from the tile menu, and put back with Undo', (tester) async {
       final store = FakeCameraStore(const [camera]);
-      await pump(tester, () async => [], saved: store);
+      await pump(tester, () async => [], saved: store, newPlayer: newPlayer);
+      await settle(tester);
+      await ready(tester);
+      await tester.tap(find.byTooltip('Options for 192.168.1.6'));
       await tester.pumpAndSettle();
-      await tester.tap(remove);
+      await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();
       expect(store.cameras, isEmpty);
       expect(find.text('Removed 192.168.1.6 · RTSP 554'), findsOneWidget);
       expect(find.text('Find the cameras on your network'), findsOneWidget);
       await tester.tap(find.text('Undo'));
-      await tester.pumpAndSettle();
+      await settle(tester);
       expect(store.cameras, [camera]);
-      expect(find.text('192.168.1.6'), findsOneWidget);
+      expect(find.byType(LiveTile), findsOneWidget);
     });
 
     testWidgets('a found device is saved from its card and unsaved again', (tester) async {
