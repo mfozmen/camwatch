@@ -98,6 +98,9 @@ flutter pub get
 Contributions go through pull requests with Conventional Commit titles; every
 line is covered by tests. See [CLAUDE.md](CLAUDE.md) for the full rules.
 
+Found a security problem? Report it privately, never in an issue: see
+[SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
