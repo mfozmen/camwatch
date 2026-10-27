@@ -103,6 +103,20 @@ void main() {
     expect(find.text('No stream'), findsOneWidget);
   });
 
+  testWidgets('a camera that keeps erroring is off after one grace, player released', (
+    tester,
+  ) async {
+    await pump(tester);
+    await settle(tester);
+    players.single.fail('audio');
+    await tester.pump(const Duration(seconds: 2));
+    players.single.fail('audio again');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(find.text('No stream'), findsOneWidget);
+    expect(players.single.disposed, isTrue, reason: 'a tile that gave up holds no socket');
+  });
+
   testWidgets('a tap reaches the owner', (tester) async {
     var tapped = false;
     await pump(tester, onTap: () => tapped = true);

@@ -87,9 +87,12 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  // Inactive is "visible, not the front window" on desktop: the grid stays live there.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    setState(() => _resumed = state == AppLifecycleState.resumed);
+    setState(() {
+      _resumed = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
+    });
   }
 
   /// Keeps [cameras] as the saved list; a store that cannot write changes nothing.

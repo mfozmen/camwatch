@@ -44,6 +44,7 @@ class _LiveTileState extends State<LiveTile> {
   final _subscriptions = <StreamSubscription<void>>[];
   Timer? _deadline;
   var _picture = _Picture.connecting;
+  var _graced = false;
   // Bumped by every start and stop: a path check that answers after a stop is ignored.
   var _generation = 0;
 
@@ -69,11 +70,14 @@ class _LiveTileState extends State<LiveTile> {
   Future<void> _start() async {
     final generation = ++_generation;
     _picture = _Picture.connecting;
+    _graced = false;
     final player = widget.newPlayer();
     _player = player;
     _subscriptions.addAll([
+      // One grace per start: a camera erroring every second must not spin forever.
       player.errors.listen((_) {
-        if (_picture != _Picture.connecting) return;
+        if (_picture != _Picture.connecting || _graced) return;
+        _graced = true;
         _deadline?.cancel();
         _deadline = Timer(errorGrace, _off);
       }),
@@ -105,7 +109,12 @@ class _LiveTileState extends State<LiveTile> {
 
   void _play(String url) => unawaited(_player!.open(url).catchError((_) => _off()));
 
-  void _off() => _show(_Picture.off);
+  /// Gives up: the picture says so and the player, with its relay and
+  /// camera connection, is released.
+  void _off() {
+    _show(_Picture.off);
+    _stop();
+  }
 
   void _show(_Picture picture) {
     _deadline?.cancel();

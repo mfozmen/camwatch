@@ -198,6 +198,10 @@ void main() {
       );
       await settle(tester);
       expect(players, hasLength(1));
+      // Visible but not the front window, on Windows every click elsewhere: still live.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await settle(tester);
+      expect(players.single.disposed, isFalse);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await settle(tester);
       expect(players.single.disposed, isTrue);
