@@ -30,7 +30,8 @@ const _portNames = {
 };
 
 /// A port number as a person reads it on a card: "RTSP 554".
-String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';
+// A no-break space: the name never parts from its number at a line end.
+String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';
 
 enum _Phase { idle, scanning, noNetwork, failed, done }
 
@@ -650,7 +651,8 @@ class _CardActions extends StatelessWidget {
             color: saved ? colors.primary : colors.onSurfaceVariant,
           ),
         ),
-        const SizedBox.square(dimension: 8),
+        // Stacked, the 48 dp tap boxes already keep the icons 8 dp apart.
+        if (!stacked) const SizedBox(width: 8),
         IconButton(
           onPressed: onWatch,
           tooltip: 'Watch',

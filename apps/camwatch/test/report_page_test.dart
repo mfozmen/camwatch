@@ -29,7 +29,7 @@ void main() {
       find.text('Anyone on your network can get in. Fix the red items first.'),
       findsOneWidget,
     );
-    expect(find.text('Open ports: Telnet 23 · HTTP 80 · RTSP 554'), findsOneWidget);
+    expect(find.text('Open ports: Telnet 23 · HTTP 80 · RTSP 554'), findsOneWidget);
     final titles = [
       'Anyone on the network can watch the stream',
       'Telnet is open',
