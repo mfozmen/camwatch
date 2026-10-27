@@ -58,13 +58,21 @@ Future<Release?> _fetch(
   request.followRedirects = false;
   final response = await request.close();
   final status = response.statusCode;
-  final location = response.headers.value(HttpHeaders.locationHeader) ?? '';
-  await response.drain<void>();
   if (status == HttpStatus.forbidden || status == HttpStatus.tooManyRequests) throw GitHubBusy();
-  if (status < 300 || status > 399 || !location.startsWith(_tagPages)) {
-    throw HttpException('$status from $page', uri: page);
-  }
-  return releaseFromTag(location.substring(_tagPages.length), current: current, abi: abi);
+  final tag = status < 300 || status > 399
+      ? null
+      : redirectedTag(page, response.headers.value(HttpHeaders.locationHeader) ?? '');
+  // The body is never read: the client is force-closed by the caller.
+  if (tag == null) throw HttpException('$status from $page', uri: page);
+  return releaseFromTag(tag, current: current, abi: abi);
+}
+
+/// The tag [page] redirects to, from its Location header, absolute or
+/// relative; null unless it is one of this repository's tag pages.
+String? redirectedTag(Uri page, String location) {
+  if (location.isEmpty) return null;
+  final target = page.resolve(location).toString();
+  return target.startsWith(_tagPages) ? target.substring(_tagPages.length) : null;
 }
 
 /// The release a tag names, by the release workflow's file naming; null

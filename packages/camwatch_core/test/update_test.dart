@@ -13,6 +13,20 @@ void main() {
     expect(latestReleasePage.toString(), 'https://github.com/mfozmen/camwatch/releases/latest');
   });
 
+  test('redirectedTag reads the tag pages of this repository, absolute or relative', () {
+    expect(redirectedTag(latestReleasePage, '${tagPage}v0.2.0'), 'v0.2.0');
+    expect(redirectedTag(latestReleasePage, '/mfozmen/camwatch/releases/tag/v0.2.0'), 'v0.2.0');
+    expect(
+      redirectedTag(latestReleasePage, 'https://github.com/someone/else/releases/tag/v1'),
+      isNull,
+    );
+    expect(
+      redirectedTag(latestReleasePage, 'https://github.com.example${tagPage.substring(18)}v1'),
+      isNull,
+    );
+    expect(redirectedTag(latestReleasePage, ''), isNull);
+  });
+
   group('releaseFromTag', () {
     test('names the version and the asset built for this ABI, by convention', () {
       final found = releaseFromTag('v0.2.0', current: '0.1.0', abi: Abi.androidArm64);
@@ -38,6 +52,22 @@ void main() {
       expect(releaseFromTag('v0.1.0', current: '0.1.1', abi: Abi.windowsX64), isNull);
     });
 
+    test('a tag with a path trick, query, fragment or file suffix is no version', () {
+      for (final tag in [
+        'v0.2.0/../../x',
+        'v0.2.0?x=1',
+        'v0.2.0#f',
+        'v0.2.0%2F..',
+        'v0.2.0.sha256',
+      ]) {
+        expect(
+          releaseFromTag(tag, current: '0.1.0', abi: Abi.windowsX64),
+          isNull,
+          reason: tag,
+        );
+      }
+    });
+
     test('is null for an ABI without a build, a tag that is no version or a huge number', () {
       expect(releaseFromTag('v0.2.0', current: '0.1.0', abi: Abi.linuxX64), isNull);
       expect(releaseFromTag('latest', current: '0.1.0', abi: Abi.windowsX64), isNull);
@@ -55,12 +85,14 @@ void main() {
     var status = 302;
     var location = '${tagPage}v0.2.0';
     var hang = false;
+    var body = '<html></html>';
 
     setUp(() async {
       requests.clear();
       status = 302;
       location = '${tagPage}v0.2.0';
       hang = false;
+      body = '<html></html>';
       server = await HttpServer.bind('127.0.0.1', 0);
       server.listen((request) {
         requests.add(request);
@@ -68,7 +100,7 @@ void main() {
         if (location.isNotEmpty) request.response.headers.set('location', location);
         request.response
           ..statusCode = status
-          ..write('<html></html>')
+          ..write(body)
           ..close();
       });
     });
@@ -114,13 +146,16 @@ void main() {
       }
     });
 
-    test('throws when the page does not redirect', () async {
+    test('throws when the page does not redirect, without reading its body', () async {
       status = 200;
       location = '';
+      body = 'x' * (4 << 20);
+      final sw = Stopwatch()..start();
       await expectLater(
         fetchLatestRelease(page(), current: '0.1.0', abi: Abi.windowsX64),
         throwsA(isA<HttpException>()),
       );
+      expect(sw.elapsedMilliseconds, lessThan(2000));
     });
 
     test('gives up on a server that never answers', () async {
