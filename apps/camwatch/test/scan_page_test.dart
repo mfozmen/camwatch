@@ -391,14 +391,14 @@ void main() {
       await tester.tap(scanButton);
       await tester.pumpAndSettle();
       final ports = tester.getRect(find.textContaining('FTP 21'));
-      expect(ports.height, lessThan(45), reason: 'two lines of bodyMedium at most');
+      // The test font is twice as wide as Roboto, so lines are not counted;
+      // the column the ports get is, and the badge no longer shares it.
+      expect(ports.width, greaterThan(220));
       final badge = tester.getRect(find.text('ONVIF'));
-      expect(
-        badge.top,
-        greaterThanOrEqualTo(ports.bottom),
-        reason: 'the badge sits under the ports',
-      );
-      expect(tester.getRect(find.byType(Card).first).height, lessThan(150));
+      expect(badge.top, greaterThanOrEqualTo(ports.bottom), reason: 'under the ports');
+      final save = tester.getRect(find.byTooltip('Remove from saved'));
+      final watch = tester.getRect(find.byTooltip('Watch'));
+      expect(watch.left, save.left, reason: 'stacked, not side by side');
     });
 
     testWidgets('a device without a stream cannot be saved', (tester) async {
