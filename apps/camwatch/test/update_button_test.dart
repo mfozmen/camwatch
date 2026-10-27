@@ -72,8 +72,49 @@ void main() {
     return (checks: checks, opened: opened);
   }
 
+  group('on the first launch', () {
+    testWidgets('the notice comes up by itself, and Allow starts the checks', (tester) async {
+      final consent = FakeConsent(given: false, asked: false);
+      final log = await pump(tester, consent: consent);
+      await tester.pumpAndSettle();
+      expect(notice, findsOneWidget, reason: 'never answered: asked without a tap');
+      expect(log.checks, isEmpty);
+      await tester.tap(find.widgetWithText(FilledButton, 'Allow'));
+      await tester.pumpAndSettle();
+      expect(consent.given, isTrue);
+      expect(log.checks, hasLength(1));
+    });
+
+    testWidgets('Not now is remembered: no notice at the next launch, the button still asks', (
+      tester,
+    ) async {
+      final consent = FakeConsent(given: false, asked: false);
+      final log = await pump(tester, consent: consent);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Not now'));
+      await tester.pumpAndSettle();
+      expect(consent.asked, isTrue);
+      expect(consent.given, isFalse);
+      await tester.pumpWidget(const SizedBox());
+      await pump(tester, consent: consent);
+      await tester.pumpAndSettle();
+      expect(notice, findsNothing);
+      expect(log.checks, isEmpty);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(notice, findsOneWidget);
+    });
+
+    testWidgets('a broken store asks nothing by itself', (tester) async {
+      final consent = FakeConsent(given: false, asked: false)..error = StateError('no store');
+      await pump(tester, consent: consent);
+      await tester.pumpAndSettle();
+      expect(notice, findsNothing);
+    });
+  });
+
   testWidgets('sends nothing until the notice is accepted', (tester) async {
-    final consent = FakeConsent(given: false);
+    final consent = FakeConsent(given: false, asked: true);
     final log = await pump(tester, consent: consent);
     expect(log.checks, isEmpty);
     await tester.tap(button);
@@ -89,7 +130,7 @@ void main() {
   });
 
   testWidgets('an accepted notice is remembered and checks at once', (tester) async {
-    final consent = FakeConsent(given: false);
+    final consent = FakeConsent(given: false, asked: true);
     final log = await pump(tester, consent: consent);
     await tester.tap(button);
     await tester.pump();
