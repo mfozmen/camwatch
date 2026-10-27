@@ -9,6 +9,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'android_installer.dart';
 import 'camera_store.dart';
 import 'consent_store.dart';
 import 'credential_store.dart';
@@ -145,8 +146,12 @@ class WindowsInstaller implements Installer {
   }
 }
 
-/// The installer for this platform, or none yet.
-Installer? get platformInstaller => Platform.isWindows ? const WindowsInstaller() : null;
+/// The installer for this platform, or none.
+Installer? get platformInstaller => Platform.isWindows
+    ? const WindowsInstaller()
+    : Platform.isAndroid
+    ? const AndroidInstaller()
+    : null;
 
 /// Hands [url] to the system browser, which downloads the release there.
 Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);

@@ -154,9 +154,17 @@ class _UpdateButtonState extends State<UpdateButton> {
       installing.value = true;
       try {
         await installer.install(file);
+      } on InstallBlocked {
+        rethrow;
       } catch (_) {
         _say('Could not start the install', 'Retry', () => _update(release, installer));
       }
+    } on InstallBlocked {
+      _say(
+        'Allow camwatch to install updates in Settings, then tap Update again',
+        'Retry',
+        () => _update(release, installer),
+      );
     } on SignatureMismatch {
       _say('The update is not signed by camwatch', 'Retry', () => _update(release, installer));
     } on DigestMismatch {

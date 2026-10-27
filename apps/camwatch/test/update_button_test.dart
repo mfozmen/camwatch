@@ -262,6 +262,26 @@ void main() {
       await tester.tap(find.text('Update'));
       await tester.pumpAndSettle();
       expect(find.text('Could not start the install'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await pump(
+        tester,
+        consent: FakeConsent(),
+        check: () async => newer,
+        installer: FakeInstaller()..error = InstallBlocked(),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Update'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Allow camwatch to install updates in Settings, then tap Update again'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Allow camwatch to install updates in Settings, then tap Update again'),
+        findsOneWidget,
+      );
     });
   });
 

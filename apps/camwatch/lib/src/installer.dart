@@ -11,7 +11,11 @@ typedef Download = Future<File> Function(
 
 /// Installs a downloaded release file and brings the new version up: the
 /// setup on Windows, the system package installer on Android. Absent on a
-/// platform that has none yet, where the browser gets the link instead.
+/// platform that has none, where the browser gets the link instead.
 abstract interface class Installer {
   Future<void> install(File file);
 }
+
+/// The OS wants the user's leave before this app may install apps; the
+/// page to give it has been opened.
+class InstallBlocked implements Exception {}
