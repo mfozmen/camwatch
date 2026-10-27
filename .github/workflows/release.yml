@@ -259,14 +259,18 @@ jobs:
             printf '%s\n' "${expected[@]}" | grep -qxF -- "$f" || { echo "::error::unexpected file $f"; exit 1; }
           done
           printf '%s\n' "$SIGNING_KEY" > "$RUNNER_TEMP/signing.pem"
+          trap 'rm -f "$RUNNER_TEMP/signing.pem"' EXIT
+          # The public half the app pins: a secret that is not its private half fails here, not on every user's update.
+          printf '%s\n' '-----BEGIN PUBLIC KEY-----' 'MCowBQYDK2VwAyEAWG4bUpOqRriz78Mcad5nyCJ8s1DmVzfUpA7JuUzEIjk=' '-----END PUBLIC KEY-----' > "$RUNNER_TEMP/public.pem"
           for asset in "${expected[@]}"; do
-            [ -f "$asset" ] || { echo "::error::$asset was not built"; rm -f "$RUNNER_TEMP/signing.pem"; exit 1; }
+            [ -f "$asset" ] || { echo "::error::$asset was not built"; exit 1; }
             sha256sum "$asset" > "$asset.sha256"
             openssl pkeyutl -sign -inkey "$RUNNER_TEMP/signing.pem" -rawin -in "$asset.sha256" | base64 -w0 > "$asset.sha256.sig"
             echo >> "$asset.sha256.sig"
+            base64 -d "$asset.sha256.sig" > "$RUNNER_TEMP/sig.bin"
+            openssl pkeyutl -verify -pubin -inkey "$RUNNER_TEMP/public.pem" -rawin -in "$asset.sha256" -sigfile "$RUNNER_TEMP/sig.bin" >/dev/null || { echo "::error::$asset.sha256 does not verify with the app's key"; exit 1; }
             echo "signed $asset.sha256"
           done
-          rm -f "$RUNNER_TEMP/signing.pem"
           ls -l *.sha256 *.sig
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:

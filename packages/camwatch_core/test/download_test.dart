@@ -130,6 +130,12 @@ void main() {
       downloadVerified(release(), into: into, publicKey: publicKey),
       throwsA(isA<SignatureMismatch>()),
     );
+    signatureText = 'AAAA';
+    await expectLater(
+      downloadVerified(release(), into: into, publicKey: publicKey),
+      throwsA(isA<SignatureMismatch>()),
+      reason: 'well-formed base64 of the wrong length is no signature either',
+    );
   });
 
   test('a signed digest for another file, or another version, is refused', () async {

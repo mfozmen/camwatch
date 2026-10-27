@@ -133,6 +133,7 @@ Future<bool> _signed(List<int> message, List<int> signature, List<int> publicKey
   } on FormatException {
     return false;
   }
+  if (bytes.length != 64) return false;
   return Ed25519().verify(
     message,
     signature: Signature(bytes, publicKey: SimplePublicKey(publicKey, type: KeyPairType.ed25519)),
