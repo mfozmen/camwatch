@@ -70,9 +70,11 @@ Until camwatch is in the app stores, new versions come from the
 updates** button at the top asks github.com for the newest release; the first
 tap explains that this is the only request that ever leaves your network and
 asks before sending it. Once accepted, the app also checks quietly each time it
-starts and shows a banner when a newer version is out: **Download** opens the
-build for your device (the APK for your phone's processor, the Windows setup)
-in your browser. Install it over the old one. Nothing about you or your cameras
+starts and shows a banner when a newer version is out. On Windows, **Update**
+downloads the setup, checks its SHA-256 against the one published with the
+release, runs it silently and brings the new version up by itself. On Android,
+**Download** opens the APK for your phone's processor in your browser; install
+it over the old one. Nothing about you or your cameras
 is sent; **Not now** keeps the app fully offline, and **Stop checking** on a
 later check turns it off again.
 

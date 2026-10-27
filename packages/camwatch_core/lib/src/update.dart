@@ -7,6 +7,9 @@ class Release {
 
   final String version;
   final Uri download;
+
+  /// The SHA-256 the release workflow publishes next to every file.
+  Uri get digest => Uri.parse('$download.sha256');
 }
 
 /// GitHub answered 403 or 429: the shared address has spent its budget for
