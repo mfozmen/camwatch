@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 
@@ -10,8 +9,18 @@ class Release {
   final Uri download;
 }
 
-/// The newest release of camwatch; the one request that leaves the local network, opt-in.
-final releasesApi = Uri.parse('https://api.github.com/repos/mfozmen/camwatch/releases/latest');
+/// GitHub answered 403 or 429: the shared address has spent its budget for
+/// now, which is not the same as being unreachable.
+class GitHubBusy implements Exception {}
+
+/// The newest release of camwatch, as the page that redirects to its tag.
+/// The one request that leaves the local network, opt-in; the web page has
+/// no per-address quota the way the API does.
+final latestReleasePage = Uri.parse('https://github.com/mfozmen/camwatch/releases/latest');
+
+/// Where that redirect must point, and where the builds are.
+const _tagPages = 'https://github.com/mfozmen/camwatch/releases/tag/';
+const _downloads = 'https://github.com/mfozmen/camwatch/releases/download/';
 
 const _assetFor = {
   Abi.androidArm64: 'android-arm64-v8a.apk',
@@ -20,24 +29,20 @@ const _assetFor = {
   Abi.windowsX64: 'windows-x64-setup.exe',
 };
 
-/// Only a file GitHub serves for this repository's releases is ever opened.
-const _downloads = 'https://github.com/mfozmen/camwatch/releases/download/';
-
-/// A release listing is a few kilobytes; anything longer is not one.
-const _maxReply = 256 * 1024;
-
-/// Asks [api] (GitHub's latest-release endpoint) and returns the release when
-/// it is newer than [current] and has a build for [abi]. Throws when the API
-/// cannot be reached within [timeout] or does not answer 200.
+/// Asks [page] (GitHub's latest-release page) where it redirects and reads
+/// the tag out of that, never following it. Returns the release when it is
+/// newer than [current] and has a build for [abi]. Throws [GitHubBusy] on
+/// 403 or 429, [HttpException] on any other answer than a redirect to this
+/// repository's tag pages, or on nothing within [timeout].
 Future<Release?> fetchLatestRelease(
-  Uri api, {
+  Uri page, {
   required String current,
   required Abi abi,
   Duration timeout = const Duration(seconds: 15),
 }) async {
   final client = HttpClient();
   try {
-    return await _fetch(client, api, current: current, abi: abi).timeout(timeout);
+    return await _fetch(client, page, current: current, abi: abi).timeout(timeout);
   } finally {
     client.close(force: true);
   }
@@ -45,46 +50,38 @@ Future<Release?> fetchLatestRelease(
 
 Future<Release?> _fetch(
   HttpClient client,
-  Uri api, {
+  Uri page, {
   required String current,
   required Abi abi,
 }) async {
-  final request = await client.getUrl(api);
-  // A 3xx would re-send the request wherever it points; the API alone may hear from us.
+  final request = await client.getUrl(page);
   request.followRedirects = false;
-  request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
   final response = await request.close();
-  if (response.statusCode != 200) throw HttpException('${response.statusCode} from $api', uri: api);
-  final body = <int>[];
-  await for (final chunk in response) {
-    body.addAll(chunk);
-    if (body.length > _maxReply) throw HttpException('reply too long', uri: api);
-  }
-  return newerRelease(utf8.decode(body), current: current, abi: abi);
+  final status = response.statusCode;
+  if (status == HttpStatus.forbidden || status == HttpStatus.tooManyRequests) throw GitHubBusy();
+  final tag = status < 300 || status > 399
+      ? null
+      : redirectedTag(page, response.headers.value(HttpHeaders.locationHeader) ?? '');
+  // The body is never read: the client is force-closed by the caller.
+  if (tag == null) throw HttpException('$status from $page', uri: page);
+  return releaseFromTag(tag, current: current, abi: abi);
 }
 
-/// Reads GitHub's release JSON; null unless it is newer than [current] and
-/// carries an asset built for [abi] among this repository's release downloads.
-Release? newerRelease(String json, {required String current, required Abi abi}) {
+/// The tag [page] redirects to, from its Location header, absolute or
+/// relative; null unless it is one of this repository's tag pages.
+String? redirectedTag(Uri page, String location) {
+  if (location.isEmpty) return null;
+  final target = page.resolve(location).toString();
+  return target.startsWith(_tagPages) ? target.substring(_tagPages.length) : null;
+}
+
+/// The release a tag names, by the release workflow's file naming; null
+/// unless it is newer than [current] and there is a build for [abi].
+Release? releaseFromTag(String tag, {required String current, required Abi abi}) {
   final suffix = _assetFor[abi];
-  final release = jsonDecode(json);
-  if (suffix == null || release is! Map) return null;
-  final tag = release['tag_name'];
-  if (tag is! String || !_newer(tag, current)) return null;
-  final assets = release['assets'];
-  final url = assets is List ? _download(assets, suffix) : null;
-  return url == null ? null : Release(tag.replaceFirst('v', ''), url);
-}
-
-/// The link of the first asset named for [suffix], if it is one of ours.
-Uri? _download(List<dynamic> assets, String suffix) {
-  for (final asset in assets) {
-    final name = asset is Map ? asset['name'] : null;
-    final link = asset is Map ? asset['browser_download_url'] : null;
-    if (name is! String || link is! String || !name.endsWith('-$suffix')) continue;
-    return link.startsWith(_downloads) ? Uri.tryParse(link) : null;
-  }
-  return null;
+  if (suffix == null || !_newer(tag, current)) return null;
+  final version = tag.replaceFirst('v', '');
+  return Release(version, Uri.parse('$_downloads$tag/camwatch-$version-$suffix'));
 }
 
 final _version = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)$');

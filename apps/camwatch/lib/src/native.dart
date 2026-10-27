@@ -108,7 +108,7 @@ class MediaKitPlayer implements StreamPlayer {
 
 /// The newest release on GitHub, when it is newer than this build and made for it.
 Future<Release?> checkForUpdate() =>
-    fetchLatestRelease(releasesApi, current: appVersion, abi: Abi.current());
+    fetchLatestRelease(latestReleasePage, current: appVersion, abi: Abi.current());
 
 /// Hands [url] to the system browser, which downloads the release there.
 Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);
