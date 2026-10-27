@@ -113,10 +113,13 @@ class MediaKitPlayer implements StreamPlayer {
 Future<Release?> checkForUpdate() =>
     fetchLatestRelease(latestReleasePage, current: appVersion, abi: Abi.current());
 
-/// A release file into a fresh folder of its own under the user's temp,
-/// verified against its digest; the folder goes with a failed download.
+/// A release file into the one update folder under the user's temp (the
+/// app cache on Android, the folder the package installer may read), emptied
+/// first so no earlier attempt lingers; it goes with a failed download.
 Future<File> downloadUpdate(Release release, {void Function(int, int?)? onProgress}) async {
-  final folder = await Directory.systemTemp.createTemp('camwatch-update-');
+  final folder = Directory('${Directory.systemTemp.path}${Platform.pathSeparator}camwatch-update');
+  if (await folder.exists()) await folder.delete(recursive: true);
+  await folder.create();
   try {
     return await downloadVerified(
       release,
