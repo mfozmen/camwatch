@@ -583,7 +583,14 @@ class _DeviceCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (playable) _CardActions(saved: saved, onSave: onSave, onWatch: onWatch),
+                  if (playable)
+                    _CardActions(
+                      saved: saved,
+                      // Stacked on a phone: side by side they squeeze the text column.
+                      stacked: MediaQuery.sizeOf(context).width < 480,
+                      onSave: onSave,
+                      onWatch: onWatch,
+                    ),
                 ],
               );
             },
@@ -616,16 +623,23 @@ class _OnvifBadge extends StatelessWidget {
 
 /// Save and Watch for a device with a stream; only the saved state is coloured.
 class _CardActions extends StatelessWidget {
-  const _CardActions({required this.saved, required this.onSave, required this.onWatch});
+  const _CardActions({
+    required this.saved,
+    required this.stacked,
+    required this.onSave,
+    required this.onWatch,
+  });
 
   final bool saved;
+  final bool stacked;
   final VoidCallback onSave;
   final VoidCallback onWatch;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Row(
+    return Flex(
+      direction: stacked ? Axis.vertical : Axis.horizontal,
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
@@ -636,7 +650,7 @@ class _CardActions extends StatelessWidget {
             color: saved ? colors.primary : colors.onSurfaceVariant,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox.square(dimension: 8),
         IconButton(
           onPressed: onWatch,
           tooltip: 'Watch',
