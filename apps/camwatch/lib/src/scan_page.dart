@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'camera_store.dart';
 import 'consent_store.dart';
 import 'credential_store.dart';
+import 'live_tile.dart';
 
 import 'player.dart';
 import 'player_page.dart';
@@ -33,7 +34,8 @@ String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';
 enum _Phase { idle, scanning, noNetwork, failed, done }
 
 /// The first screen: one button that scans the local network and the
-/// devices it found, or the cameras kept in [saved] until then. [scan]
+/// devices it found, or a live grid of the cameras kept in [saved] until
+/// then; the grid streams only while this screen is in front. [scan]
 /// resolves to null when there is no LAN; a tap on a device with RTSP opens
 /// it in a fresh player from [newPlayer]. Nothing is probed until the notice
 /// in [consent] has been accepted once.
@@ -61,19 +63,33 @@ class ScanPage extends StatefulWidget {
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> {
+class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   var _phase = _Phase.idle;
   var _devices = const <Device>[];
   var _streams = <String, ValueNotifier<Map<String, PathStatus>?>>{};
   var _asking = false;
   var _saved = const <SavedCamera>[];
+  var _resumed = true;
+  var _watching = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.saved.read().then((cameras) {
       if (mounted) setState(() => _saved = cameras);
     }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    setState(() => _resumed = state == AppLifecycleState.resumed);
   }
 
   /// Keeps [cameras] as the saved list; a store that cannot write changes nothing.
@@ -163,16 +179,20 @@ class _ScanPageState extends State<ScanPage> {
     return mounted;
   }
 
-  void _watch(Device device) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => PlayerPage(
-        device: device,
-        player: widget.newPlayer(),
-        findPaths: widget.findPaths,
-        store: widget.store,
+  Future<void> _watch(Device device) async {
+    setState(() => _watching = true);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PlayerPage(
+          device: device,
+          player: widget.newPlayer(),
+          findPaths: widget.findPaths,
+          store: widget.store,
+        ),
       ),
-    ),
-  );
+    );
+    if (mounted) setState(() => _watching = false);
+  }
 
   void _report(Device device) => Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -187,10 +207,15 @@ class _ScanPageState extends State<ScanPage> {
   @override
   Widget build(BuildContext context) {
     final scanning = _phase == _Phase.scanning;
+    // Lists read best in a 600 px column; a wall of pictures wants the window.
+    final grid = _phase == _Phase.idle && _saved.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text('camwatch'), actions: widget.actions),
       body: Center(
-        child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 600), child: _body()),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: grid ? 1280 : 600),
+          child: _body(),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: scanning ? null : _scan,
@@ -207,8 +232,12 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Widget _body() => switch (_phase) {
-    _Phase.idle when _saved.isNotEmpty => _SavedList(
+    _Phase.idle when _saved.isNotEmpty => _SavedGrid(
       _saved,
+      live: _resumed && !_watching,
+      newPlayer: widget.newPlayer,
+      findPaths: widget.findPaths,
+      store: widget.store,
       onWatch: (camera) => _watch(camera.device),
       onRemove: _remove,
     ),
@@ -251,11 +280,24 @@ class _ScanPageState extends State<ScanPage> {
   };
 }
 
-/// The cameras kept across restarts, shown until a scan replaces them.
-class _SavedList extends StatelessWidget {
-  const _SavedList(this.cameras, {required this.onWatch, required this.onRemove});
+/// The cameras kept across restarts as live tiles, shown until a scan
+/// replaces them; every tile streams only while [live].
+class _SavedGrid extends StatelessWidget {
+  const _SavedGrid(
+    this.cameras, {
+    required this.live,
+    required this.newPlayer,
+    required this.findPaths,
+    required this.store,
+    required this.onWatch,
+    required this.onRemove,
+  });
 
   final List<SavedCamera> cameras;
+  final bool live;
+  final StreamPlayer Function() newPlayer;
+  final FindPaths findPaths;
+  final CredentialStore store;
   final void Function(SavedCamera) onWatch;
   final void Function(SavedCamera) onRemove;
 
@@ -263,58 +305,51 @@ class _SavedList extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Saved cameras',
-                style: text.titleSmall?.copyWith(color: colors.onSurfaceVariant),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Kept from earlier scans. Scan to check them again.',
-                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-        for (final camera in cameras)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              onTap: () => onWatch(camera),
-              contentPadding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-              leading: Icon(Icons.videocam_outlined, color: colors.primary),
-              title: Text(
-                camera.address,
-                style: text.titleMedium?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(32, 16, 32, 16),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Saved cameras',
+                  style: text.titleSmall?.copyWith(color: colors.onSurfaceVariant),
                 ),
-              ),
-              subtitle: Text(portLabel(camera.port)),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: () => onWatch(camera),
-                    tooltip: 'Watch',
-                    icon: Icon(Icons.play_circle_outline, color: colors.primary),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => onRemove(camera),
-                    tooltip: 'Remove',
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                ],
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  'Kept from earlier scans. Scan to check them again.',
+                  style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 320,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 16 / 10,
+            ),
+            delegate: SliverChildBuilderDelegate(childCount: cameras.length, (context, index) {
+              final camera = cameras[index];
+              return LiveTile(
+                key: ValueKey(camera),
+                camera: camera,
+                live: live,
+                newPlayer: newPlayer,
+                findPaths: findPaths,
+                store: store,
+                onTap: () => onWatch(camera),
+                onRemove: () => onRemove(camera),
+              );
+            }),
+          ),
+        ),
       ],
     );
   }
