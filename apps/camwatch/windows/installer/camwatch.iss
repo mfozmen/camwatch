@@ -50,3 +50,11 @@ Name: "{autodesktop}\camwatch"; Filename: "{app}\camwatch.exe"; Tasks: desktopic
 [Run]
 ; As the signed-in user, never as an elevated setup.
 Filename: "{app}\camwatch.exe"; Description: "{cm:LaunchProgram,camwatch}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+; The app updating itself runs the setup silently with /RELAUNCH=1 and exits; this brings it back.
+Filename: "{app}\camwatch.exe"; Flags: nowait runasoriginaluser; Check: Relaunch
+
+[Code]
+function Relaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;

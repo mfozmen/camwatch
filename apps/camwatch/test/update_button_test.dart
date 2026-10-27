@@ -1,11 +1,31 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:camwatch/src/installer.dart';
 import 'package:camwatch/src/update_button.dart';
 import 'package:camwatch_core/camwatch_core.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_consent.dart';
 
 final newer = Release('0.2.0', Uri.https('github.com', '/mfozmen/camwatch/releases/x.apk'));
+
+class FakeInstaller implements Installer {
+  final installed = <File>[];
+  Object? error;
+
+  /// When set, the install waits on it, like a setup that takes a while.
+  Completer<void>? running;
+
+  @override
+  Future<void> install(File file) async {
+    if (error case final error?) throw error;
+    installed.add(file);
+    await running?.future;
+  }
+}
 
 void main() {
   final button = find.byTooltip('Check for updates');
@@ -17,6 +37,8 @@ void main() {
     required FakeConsent consent,
     Future<Release?> Function()? check,
     bool browser = true,
+    FakeInstaller? installer,
+    Download? download,
   }) async {
     final checks = <int>[];
     final opened = <Uri>[];
@@ -36,6 +58,10 @@ void main() {
                   if (!browser) throw Exception('no handler');
                   opened.add(url);
                 },
+                installer: installer,
+                download:
+                    download ??
+                    (release, {onProgress}) async => File('camwatch-${release.version}.exe'),
               ),
             ],
           ),
@@ -123,6 +149,78 @@ void main() {
       greaterThanOrEqualTo(box.bottom),
       reason: 'pushes the body down, never covers it',
     );
+  });
+
+  group('with an installer', () {
+    testWidgets('Update downloads with progress, then hands the file over', (tester) async {
+      final installer = FakeInstaller()..running = Completer();
+      final progress = Completer<void>();
+      late void Function(int, int?) report;
+      await pump(
+        tester,
+        consent: FakeConsent(),
+        check: () async => newer,
+        installer: installer,
+        download: (release, {onProgress}) async {
+          report = onProgress!;
+          await progress.future;
+          return File('camwatch-0.2.0-windows-x64-setup.exe');
+        },
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Download'), findsNothing);
+      await tester.tap(find.text('Update'));
+      await tester.pump();
+      expect(find.text('Downloading camwatch 0.2.0'), findsOneWidget);
+      expect(find.text('0 MB'), findsOneWidget, reason: 'nothing yet, no total yet');
+      report(12 << 20, 30 << 20);
+      await tester.pump();
+      expect(find.text('12 MB of 30 MB'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.text('Installing…'), findsNothing);
+      progress.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Installing…'), findsOneWidget);
+      expect(installer.installed.single.path, 'camwatch-0.2.0-windows-x64-setup.exe');
+      installer.running!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Installing…'), findsNothing);
+    });
+
+    testWidgets('a damaged download, a failed one and a failed install are each named', (
+      tester,
+    ) async {
+      for (final (error, text) in [
+        (DigestMismatch(), 'The download was damaged, try again'),
+        (Exception('offline'), 'Could not download the update'),
+      ]) {
+        await tester.pumpWidget(const SizedBox());
+        await pump(
+          tester,
+          consent: FakeConsent(),
+          check: () async => newer,
+          installer: FakeInstaller(),
+          download: (release, {onProgress}) async => throw error,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Update'));
+        await tester.pumpAndSettle();
+        expect(find.text(text), findsOneWidget, reason: '$error');
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+      }
+      await tester.pumpWidget(const SizedBox());
+      await pump(
+        tester,
+        consent: FakeConsent(),
+        check: () async => newer,
+        installer: FakeInstaller()..error = Exception('no setup'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Update'));
+      await tester.pumpAndSettle();
+      expect(find.text('Could not start the install'), findsOneWidget);
+    });
   });
 
   testWidgets('Later hides the banner', (tester) async {

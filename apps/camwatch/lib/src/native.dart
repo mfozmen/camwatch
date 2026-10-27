@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:io';
 
 import 'package:camwatch_core/camwatch_core.dart';
 import 'package:flutter/widgets.dart';
@@ -11,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'camera_store.dart';
 import 'consent_store.dart';
 import 'credential_store.dart';
+import 'installer.dart';
 import 'multicast_lock.dart';
 import 'player.dart';
 import 'version.dart';
@@ -109,6 +111,37 @@ class MediaKitPlayer implements StreamPlayer {
 /// The newest release on GitHub, when it is newer than this build and made for it.
 Future<Release?> checkForUpdate() =>
     fetchLatestRelease(latestReleasePage, current: appVersion, abi: Abi.current());
+
+/// A release file into a fresh folder of its own under the user's temp,
+/// verified against its digest; the folder goes with a failed download.
+Future<File> downloadUpdate(Release release, {void Function(int, int?)? onProgress}) async {
+  final folder = await Directory.systemTemp.createTemp('camwatch-update-');
+  try {
+    return await downloadVerified(release, into: folder, onProgress: onProgress);
+  } catch (_) {
+    await folder.delete(recursive: true);
+    rethrow;
+  }
+}
+
+/// Runs the downloaded setup silently and quits, so it can replace the
+/// files; the setup starts the new version (its /RELAUNCH switch).
+class WindowsInstaller implements Installer {
+  const WindowsInstaller();
+
+  @override
+  Future<void> install(File file) async {
+    await Process.start(file.path, const [
+      '/VERYSILENT',
+      '/NORESTART',
+      '/RELAUNCH=1',
+    ], mode: ProcessStartMode.detached);
+    exit(0);
+  }
+}
+
+/// The installer for this platform, or none yet.
+Installer? get platformInstaller => Platform.isWindows ? const WindowsInstaller() : null;
 
 /// Hands [url] to the system browser, which downloads the release there.
 Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);

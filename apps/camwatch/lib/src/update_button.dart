@@ -2,20 +2,32 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:camwatch_core/camwatch_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'consent_store.dart';
+import 'installer.dart';
 
 /// The one request that leaves the local network, and only once the notice
 /// in [consent] has been accepted: [check] asks GitHub for a newer release,
-/// on a tap and quietly at start. A newer one is offered in a banner whose
-/// Download hands its link to [open].
+/// on a tap and quietly at start. A newer one is offered in a banner: with
+/// an installer, Update fetches and installs it; without one, Download
+/// hands the link to the browser.
 class UpdateButton extends StatefulWidget {
-  const UpdateButton({super.key, required this.check, required this.consent, required this.open});
+  const UpdateButton({
+    super.key,
+    required this.check,
+    required this.consent,
+    required this.open,
+    required this.download,
+    this.installer,
+  });
 
   final Future<Release?> Function() check;
   final ConsentStore consent;
   final Future<void> Function(Uri) open;
+  final Download download;
+  final Installer? installer;
 
   @override
   State<UpdateButton> createState() => _UpdateButtonState();
@@ -76,18 +88,67 @@ class _UpdateButtonState extends State<UpdateButton> {
         content: Text('camwatch ${release.version} is out'),
         actions: [
           TextButton(onPressed: messenger.hideCurrentMaterialBanner, child: const Text('Later')),
-          TextButton(
-            onPressed: () {
-              messenger.hideCurrentMaterialBanner();
-              unawaited(
-                widget.open(release!.download).catchError((_) => _say('Could not open a browser')),
-              );
-            },
-            child: const Text('Download'),
-          ),
+          if (widget.installer case final installer?)
+            TextButton(
+              onPressed: () {
+                messenger.hideCurrentMaterialBanner();
+                unawaited(_update(release!, installer));
+              },
+              child: const Text('Update'),
+            )
+          else
+            TextButton(
+              onPressed: () {
+                messenger.hideCurrentMaterialBanner();
+                unawaited(
+                  widget
+                      .open(release!.download)
+                      .catchError((_) => _say('Could not open a browser')),
+                );
+              },
+              child: const Text('Download'),
+            ),
         ],
       ),
     );
+  }
+
+  /// Fetches and installs [release] behind a progress dialog; every way it
+  /// can fail is named, nothing is left half done.
+  Future<void> _update(Release release, Installer installer) async {
+    final progress = ValueNotifier<(int, int?)>((0, null));
+    final installing = ValueNotifier(false);
+    final navigator = Navigator.of(context);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: _Progress(version: release.version, progress: progress, installing: installing),
+        ),
+      ),
+    );
+    try {
+      final file = await widget.download(
+        release,
+        onProgress: (received, total) => progress.value = (received, total),
+      );
+      installing.value = true;
+      try {
+        await installer.install(file);
+      } catch (_) {
+        _say('Could not start the install', 'Retry', () => _update(release, installer));
+      }
+    } on DigestMismatch {
+      _say('The download was damaged, try again', 'Retry', () => _update(release, installer));
+    } catch (_) {
+      _say('Could not download the update', 'Retry', () => _update(release, installer));
+    } finally {
+      if (mounted) navigator.pop();
+      progress.dispose();
+      installing.dispose();
+    }
   }
 
   Future<void> _stop() async {
@@ -114,6 +175,56 @@ class _UpdateButtonState extends State<UpdateButton> {
   );
 }
 
+/// The download, then the install, of one release; closed by the caller.
+class _Progress extends StatelessWidget {
+  const _Progress({required this.version, required this.progress, required this.installing});
+
+  final String version;
+
+  /// Bytes so far and the total when the server said.
+  final ValueListenable<(int, int?)> progress;
+
+  /// True once the file is whole and the installer has it.
+  final ValueListenable<bool> installing;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return AlertDialog(
+      title: Text('Downloading camwatch $version'),
+      content: ValueListenableBuilder(
+        valueListenable: installing,
+        builder: (context, installing, _) => ValueListenableBuilder(
+          valueListenable: progress,
+          builder: (context, value, _) {
+            final (received, total) = value;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(
+                  value: installing || total == null ? null : received / total,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  installing
+                      ? 'Installing…'
+                      : total == null
+                      ? '${_mb(received)} MB'
+                      : '${_mb(received)} MB of ${_mb(total)} MB',
+                  style: text.bodyMedium,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  static int _mb(int bytes) => bytes >> 20;
+}
+
 /// Asked once before the first check; pops true when accepted.
 class _Notice extends StatelessWidget {
   const _Notice();
@@ -125,9 +236,9 @@ class _Notice extends StatelessWidget {
       icon: const Icon(Icons.system_update_alt),
       title: const Text('Check for updates?'),
       content: const Text(
-        'camwatch asks github.com for its newest release, now and each time it starts. '
-        'That is the only request that leaves your network. It sends nothing about you '
-        'or your cameras.',
+        'camwatch asks github.com for its newest release, now and each time it starts, '
+        'and fetches an update from there when you ask. GitHub and its download servers '
+        'are the only places the app ever talks to. It sends nothing about you or your cameras.',
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')),
