@@ -294,13 +294,23 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Builds and signatures land in separate folders: merged in one, the
+      # builds' own .sha256 files could overwrite the signed ones in any order.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          pattern: "{app-*,signatures}"
-          path: dist
+          pattern: app-*
+          path: built
           merge-multiple: true
-      # The signatures artifact carries the digests the sign job computed; they
-      # land after the builds' files, so --clobber keeps the signed ones.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: signatures
+          path: signed
+      - name: Assemble
+        run: |
+          mkdir dist
+          find built -type f ! -name '*.sha256' -exec cp {} dist/ \;
+          cp signed/*.sha256 signed/*.sig dist/
+          ls -l dist
       - name: Upload
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
