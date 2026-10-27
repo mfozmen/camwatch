@@ -150,11 +150,11 @@ class WindowsInstaller implements Installer {
 }
 
 /// The installer for this platform, or none.
-Installer? get platformInstaller => Platform.isWindows
-    ? const WindowsInstaller()
-    : Platform.isAndroid
-    ? const AndroidInstaller()
-    : null;
+Installer? get platformInstaller {
+  if (Platform.isWindows) return const WindowsInstaller();
+  if (Platform.isAndroid) return const AndroidInstaller();
+  return null;
+}
 
 /// Hands [url] to the system browser, which downloads the release there.
 Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);
