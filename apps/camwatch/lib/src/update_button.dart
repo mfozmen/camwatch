@@ -11,8 +11,8 @@ import 'installer.dart';
 /// The one request that leaves the local network, and only once the notice
 /// in [consent] has been accepted: [check] asks GitHub for a newer release,
 /// on a tap and quietly at start. A newer one is offered in a banner: with
-/// an [installer], Update fetches it through [download] and installs it;
-/// without one, Download hands the link to [open].
+/// an installer, Update fetches and installs it; without one, Download
+/// hands the link to the browser.
 class UpdateButton extends StatefulWidget {
   const UpdateButton({
     super.key,
@@ -236,9 +236,9 @@ class _Notice extends StatelessWidget {
       icon: const Icon(Icons.system_update_alt),
       title: const Text('Check for updates?'),
       content: const Text(
-        'camwatch asks github.com for its newest release, now and each time it starts. '
-        'That is the only request that leaves your network. It sends nothing about you '
-        'or your cameras.',
+        'camwatch asks github.com for its newest release, now and each time it starts, '
+        'and fetches an update from there when you ask. GitHub and its download servers '
+        'are the only places the app ever talks to. It sends nothing about you or your cameras.',
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')),

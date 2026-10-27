@@ -15,6 +15,7 @@ void main() {
   var digestStatus = 200;
   var assetStatus = 200;
   var stall = false;
+  var redirectTo = '';
   final requests = <String>[];
 
   setUp(() async {
@@ -23,6 +24,7 @@ void main() {
     digestStatus = 200;
     assetStatus = 200;
     stall = false;
+    redirectTo = '';
     requests.clear();
     into = await Directory.systemTemp.createTemp('camwatch-test-');
     server = await HttpServer.bind('127.0.0.1', 0);
@@ -32,6 +34,13 @@ void main() {
         request.response
           ..statusCode = digestStatus
           ..write(digestText);
+        await request.response.close();
+        return;
+      }
+      if (redirectTo.isNotEmpty && !request.uri.path.endsWith('/real')) {
+        request.response
+          ..statusCode = 302
+          ..headers.set('location', redirectTo);
         await request.response.close();
         return;
       }
@@ -106,13 +115,52 @@ void main() {
     expect(into.listSync(), isEmpty);
   });
 
+  test('a redirect stays on the same server, never a stranger, and is not chased', () async {
+    redirectTo = 'http://127.0.0.1:${server.port}/download/v0.2.0/real';
+    final file = await downloadVerified(release(), into: into);
+    expect(await file.readAsBytes(), bytes);
+    redirectTo = 'http://example.invalid/camwatch-0.2.0-windows-x64-setup.exe';
+    requests.clear();
+    await expectLater(downloadVerified(release(), into: into), throwsA(isA<HttpException>()));
+    expect(requests, hasLength(2), reason: 'the digest and the asset, nothing after the redirect');
+    redirectTo =
+        'http://127.0.0.1:${server.port}/download/v0.2.0/camwatch-0.2.0-windows-x64-setup.exe';
+    await expectLater(downloadVerified(release(), into: into), throwsA(isA<HttpException>()));
+    expect(into.listSync(), isEmpty);
+  });
+
+  test('a file past the cap is cut off and removed', () async {
+    await expectLater(
+      downloadVerified(release(), into: into, maxBytes: 1000),
+      throwsA(isA<HttpException>()),
+    );
+    expect(into.listSync(), isEmpty);
+  });
+
   test('only this repository\'s release files are ever downloaded', () async {
     final elsewhere = Release(
       '0.2.0',
       Uri.parse('https://example.com/camwatch-0.2.0-windows-x64-setup.exe'),
     );
     await expectLater(downloadVerified(elsewhere, into: into), throwsArgumentError);
+    final lan = Release(
+      '0.2.0',
+      Uri.parse('http://192.168.1.9/camwatch-0.2.0-windows-x64-setup.exe'),
+    );
+    await expectLater(downloadVerified(lan, into: into), throwsArgumentError);
     expect(requests, isEmpty);
+  });
+
+  test('a redirect from GitHub may only land on GitHub, over https', () {
+    final origin = Uri.parse('https://github.com/mfozmen/camwatch/releases/download/v1/x.exe');
+    expect(trustedRedirect(Uri.parse('https://objects.githubusercontent.com/x'), origin), isTrue);
+    expect(trustedRedirect(Uri.parse('https://github.com/x'), origin), isTrue);
+    expect(trustedRedirect(Uri.parse('http://objects.githubusercontent.com/x'), origin), isFalse);
+    expect(
+      trustedRedirect(Uri.parse('https://githubusercontent.com.evil.example/x'), origin),
+      isFalse,
+    );
+    expect(trustedRedirect(Uri.parse('https://example.com/x'), origin), isFalse);
   });
 
   test('the digest text is read as sha256sum writes it', () {
