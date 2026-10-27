@@ -45,8 +45,8 @@ void main() {
   final scanButton = find.widgetWithText(FloatingActionButton, 'Scan network');
 
   test('portLabel names the graded ports too', () {
-    expect([21, 23, 443, 9].map(portLabel), ['FTP 21', 'Telnet 23', 'HTTPS 443', 'Port 9']);
-    expect([22, 37777, 34567].map(portLabel), ['SSH 22', 'Dahua 37777', 'XMeye 34567']);
+    expect([21, 23, 443, 9].map(portLabel), ['FTP 21', 'Telnet 23', 'HTTPS 443', 'Port 9']);
+    expect([22, 37777, 34567].map(portLabel), ['SSH 22', 'Dahua 37777', 'XMeye 34567']);
   });
 
   group('the first scan', () {
@@ -314,7 +314,7 @@ void main() {
       await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();
       expect(store.cameras, isEmpty);
-      expect(find.text('Removed 192.168.1.6 · RTSP 554'), findsOneWidget);
+      expect(find.text('Removed 192.168.1.6 · RTSP 554'), findsOneWidget);
       expect(find.text('Find the cameras on your network'), findsOneWidget);
       await tester.tap(find.text('Undo'));
       await settle(tester);
@@ -371,6 +371,34 @@ void main() {
       final grade = tester.getRect(find.textContaining('Exposed'));
       expect(badge.top, greaterThanOrEqualTo(grade.bottom), reason: 'and under the grade line');
       expect(grade.height, lessThan(30), reason: 'the grade line never wraps');
+    });
+
+    testWidgets('the busiest card keeps its ports to two lines on a phone', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pump(
+        tester,
+        () async => const [
+          Device(
+            '192.168.100.254',
+            openPorts: [21, 23, 80, 554, 37777],
+            onvifAddress: 'http://192.168.100.254/o',
+          ),
+        ],
+        saved: FakeCameraStore(const [SavedCamera('192.168.100.254', 554, name: 'Garden')]),
+      );
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      final ports = tester.getRect(find.textContaining('FTP 21'));
+      // The test font is twice as wide as Roboto, so lines are not counted;
+      // the column the ports get is, and the badge no longer shares it.
+      expect(ports.width, greaterThan(220));
+      final badge = tester.getRect(find.text('ONVIF'));
+      expect(badge.top, greaterThanOrEqualTo(ports.bottom), reason: 'under the ports');
+      final save = tester.getRect(find.byTooltip('Remove from saved'));
+      final watch = tester.getRect(find.byTooltip('Watch'));
+      expect(watch.left, save.left, reason: 'stacked, not side by side');
     });
 
     testWidgets('a device without a stream cannot be saved', (tester) async {
@@ -479,8 +507,8 @@ void main() {
     await tester.pump();
     expect(find.text('2 devices found'), findsOneWidget);
     expect(find.text('192.168.1.10'), findsOneWidget);
-    expect(find.text('HTTP 80 · RTSP 554'), findsOneWidget);
-    expect(find.text('SDK 8000'), findsOneWidget);
+    expect(find.text('HTTP 80 · RTSP 554'), findsOneWidget);
+    expect(find.text('SDK 8000'), findsOneWidget);
     expect(find.text('ONVIF'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('192.168.1.10.*ONVIF', dotAll: true)), findsOneWidget);
     expect(find.byTooltip('Watch'), findsOneWidget);
@@ -594,6 +622,6 @@ void main() {
     await tester.tap(scanButton);
     await tester.pump();
     expect(find.text('1 device found'), findsOneWidget);
-    expect(find.text('RTSP 8554'), findsOneWidget);
+    expect(find.text('RTSP 8554'), findsOneWidget);
   });
 }

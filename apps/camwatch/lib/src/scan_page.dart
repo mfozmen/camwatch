@@ -30,7 +30,8 @@ const _portNames = {
 };
 
 /// A port number as a person reads it on a card: "RTSP 554".
-String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';
+// A no-break space: the name never parts from its number at a line end.
+String portLabel(int port) => '${_portNames[port] ?? 'Port'} $port';
 
 enum _Phase { idle, scanning, noNetwork, failed, done }
 
@@ -553,20 +554,20 @@ class _DeviceCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          device.openPorts.map(portLabel).join(' · '),
-                                          style: text.bodyMedium?.copyWith(
-                                            color: colors.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ),
-                                      if (device.onvifAddress != null) const _OnvifBadge(),
-                                    ],
+                                  Text(
+                                    device.openPorts.map(portLabel).join(' · '),
+                                    style: text.bodyMedium?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                    ),
                                   ),
+                                  // Its own row: beside the ports it squeezed them on a phone.
+                                  if (device.onvifAddress != null) ...[
+                                    const SizedBox(height: 4),
+                                    const Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: _OnvifBadge(),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -583,7 +584,14 @@ class _DeviceCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (playable) _CardActions(saved: saved, onSave: onSave, onWatch: onWatch),
+                  if (playable)
+                    _CardActions(
+                      saved: saved,
+                      // Stacked on a phone: side by side they squeeze the text column.
+                      stacked: MediaQuery.sizeOf(context).width < 480,
+                      onSave: onSave,
+                      onWatch: onWatch,
+                    ),
                 ],
               );
             },
@@ -601,7 +609,6 @@ class _OnvifBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.tertiaryContainer,
@@ -617,16 +624,23 @@ class _OnvifBadge extends StatelessWidget {
 
 /// Save and Watch for a device with a stream; only the saved state is coloured.
 class _CardActions extends StatelessWidget {
-  const _CardActions({required this.saved, required this.onSave, required this.onWatch});
+  const _CardActions({
+    required this.saved,
+    required this.stacked,
+    required this.onSave,
+    required this.onWatch,
+  });
 
   final bool saved;
+  final bool stacked;
   final VoidCallback onSave;
   final VoidCallback onWatch;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Row(
+    return Flex(
+      direction: stacked ? Axis.vertical : Axis.horizontal,
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
@@ -637,7 +651,8 @@ class _CardActions extends StatelessWidget {
             color: saved ? colors.primary : colors.onSurfaceVariant,
           ),
         ),
-        const SizedBox(width: 8),
+        // Stacked, the 48 dp tap boxes already keep the icons 8 dp apart.
+        if (!stacked) const SizedBox(width: 8),
         IconButton(
           onPressed: onWatch,
           tooltip: 'Watch',
