@@ -133,7 +133,7 @@ jobs:
         shell: bash
         run: flutter build windows --release --build-name="$VERSION"
       - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+        run: choco install innosetup --version 6.7.1 --no-progress -y
       - name: Package
         shell: bash
         run: bash tool/package_desktop.sh "$VERSION" dist Release
