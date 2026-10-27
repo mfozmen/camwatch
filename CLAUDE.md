@@ -37,7 +37,7 @@ A monorepo and a Dart pub workspace.
 ```
 packages/camwatch_core/   pure Dart, no Flutter: subnet math, discovery, RTSP/ONVIF parsing, security rules
 apps/camwatch/            the Flutter app: Android and Windows
-tool/                     the coverage gate, comment check, desktop packaging
+tool/                     the coverage gate, comment check, desktop packaging, the app icon
 ```
 
 Dependencies point one way: the app imports the core, the core never imports Flutter or the app. Logic that needs no UI belongs in the core.
