@@ -174,7 +174,13 @@ class SecureConsentStore implements ConsentStore {
   Future<bool> read() async => await _storage.read(key: _key) == 'yes';
 
   @override
+  Future<bool> wasAsked() async => await _storage.read(key: _key) != null;
+
+  @override
   Future<void> write() => _storage.write(key: _key, value: 'yes');
+
+  @override
+  Future<void> refuse() => _storage.write(key: _key, value: 'no');
 
   @override
   Future<void> clear() => _storage.delete(key: _key);

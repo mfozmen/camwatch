@@ -38,8 +38,25 @@ class _UpdateButtonState extends State<UpdateButton> {
   void initState() {
     super.initState();
     _given().then((given) {
-      if (given) _check(quiet: true);
+      if (given) return _check(quiet: true);
+      _askOnce();
     });
+  }
+
+  /// The first launch asks by itself; a refusal is kept so it asks no more.
+  Future<void> _askOnce() async {
+    bool asked;
+    try {
+      asked = await widget.consent.wasAsked();
+    } catch (_) {
+      return;
+    }
+    if (asked || !mounted) return;
+    final accepted = await showDialog<bool>(context: context, builder: (_) => const _Notice());
+    try {
+      accepted == true ? await widget.consent.write() : await widget.consent.refuse();
+    } catch (_) {}
+    if (accepted == true) await _check(quiet: true);
   }
 
   Future<bool> _given() async {
