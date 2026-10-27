@@ -20,11 +20,16 @@ final updatePublicKey = base64.decode('WG4bUpOqRriz78Mcad5nyCJ8s1DmVzfUpA7JuUzEI
 
 const _downloads = 'https://github.com/mfozmen/camwatch/releases/download/';
 const _loopback = '127.0.0.1';
-final _hex64 = RegExp(r'^[0-9a-fA-F]{64}');
+final _digestLine = RegExp(r'^([0-9a-fA-F]{64})(?:\s+\*?(\S+))?');
 
-/// The digest in a `.sha256` file as `sha256sum` writes it (`<hex>  <name>`),
-/// lower-cased; null when the text is not one.
-String? parseDigest(String text) => _hex64.firstMatch(text.trim())?.group(0)?.toLowerCase();
+/// The digest in a `.sha256` file as `sha256sum` writes it (`<hex>  <name>`):
+/// the hex lower-cased and the file it names ('' when it names none); null
+/// when the text is not one.
+(String, String)? parseDigest(String text) {
+  final match = _digestLine.firstMatch(text.trim());
+  if (match == null) return null;
+  return (match.group(1)!.toLowerCase(), match.group(2) ?? '');
+}
 
 /// Downloads [release]'s asset into [into], named as on the release page,
 /// after fetching its `.sha256` and the signature of that file next to it:
@@ -52,8 +57,12 @@ Future<File> downloadVerified(
     final signature = await _small(client, release.signature, idle);
     final digestFile = await _small(client, release.digest, idle);
     if (!await _signed(digestFile, signature, publicKey)) throw SignatureMismatch();
-    final expected = parseDigest(utf8.decode(digestFile, allowMalformed: true));
-    if (expected == null) throw HttpException('no digest for $url', uri: release.digest);
+    final parsed = parseDigest(utf8.decode(digestFile, allowMalformed: true));
+    if (parsed == null) throw HttpException('no digest for $url', uri: release.digest);
+    final (expected, named) = parsed;
+    // The signed line names its file, version included: a signature for
+    // another release's file, served in this one's place, proves nothing here.
+    if (named != url.pathSegments.last) throw SignatureMismatch();
     final response = await _open(client, url, idle);
     final total = response.contentLength < 0 ? null : response.contentLength;
     final sink = file.openWrite();

@@ -132,6 +132,22 @@ void main() {
     );
   });
 
+  test('a signed digest for another file, or another version, is refused', () async {
+    digestText = '$digest  camwatch-0.2.0-android-arm64-v8a.apk\n';
+    signatureText = await sign(digestText);
+    await expectLater(
+      downloadVerified(release(), into: into, publicKey: publicKey),
+      throwsA(isA<SignatureMismatch>()),
+    );
+    digestText = '$digest  camwatch-0.1.0-windows-x64-setup.exe\n';
+    signatureText = await sign(digestText);
+    await expectLater(
+      downloadVerified(release(), into: into, publicKey: publicKey),
+      throwsA(isA<SignatureMismatch>()),
+    );
+    expect(requests.where((p) => p.endsWith('setup.exe')), isEmpty, reason: 'never fetched');
+  });
+
   test('the app pins the release signing key', () {
     expect(updatePublicKey, hasLength(32));
     expect(base64.encode(updatePublicKey), 'WG4bUpOqRriz78Mcad5nyCJ8s1DmVzfUpA7JuUzEIjk=');
@@ -258,10 +274,10 @@ void main() {
     expect(trustedRedirect(Uri.parse('https://example.com/x'), origin), isFalse);
   });
 
-  test('the digest text is read as sha256sum writes it', () {
-    expect(parseDigest('$digest  camwatch-0.2.0.exe\n'), digest);
-    expect(parseDigest('$digest *camwatch-0.2.0.exe'), digest);
-    expect(parseDigest(digest.toUpperCase()), digest);
+  test('the digest text is read as sha256sum writes it: the hex and the file it names', () {
+    expect(parseDigest('$digest  camwatch-0.2.0.exe\n'), (digest, 'camwatch-0.2.0.exe'));
+    expect(parseDigest('$digest *camwatch-0.2.0.exe'), (digest, 'camwatch-0.2.0.exe'));
+    expect(parseDigest(digest.toUpperCase()), (digest, ''));
     expect(parseDigest('nope'), isNull);
     expect(parseDigest(''), isNull);
     expect(parseDigest(utf8.decode([0xff, 0xfe], allowMalformed: true)), isNull);
