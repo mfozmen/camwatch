@@ -486,24 +486,7 @@ class _DeviceCard extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      if (device.onvifAddress != null)
-                                        Container(
-                                          margin: const EdgeInsets.only(left: 8),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: colors.tertiaryContainer,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            'ONVIF',
-                                            style: text.labelMedium?.copyWith(
-                                              color: colors.onTertiaryContainer,
-                                            ),
-                                          ),
-                                        ),
+                                      if (device.onvifAddress != null) const _OnvifBadge(),
                                     ],
                                   ),
                                 ],
@@ -522,28 +505,67 @@ class _DeviceCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (playable) ...[
-                    IconButton(
-                      onPressed: onSave,
-                      tooltip: saved ? 'Remove from saved' : 'Save camera',
-                      icon: Icon(
-                        saved ? Icons.bookmark : Icons.bookmark_outline,
-                        color: saved ? colors.primary : colors.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: onWatch,
-                      tooltip: 'Watch',
-                      icon: Icon(Icons.play_circle_outline, color: colors.primary),
-                    ),
-                  ],
+                  if (playable) _CardActions(saved: saved, onSave: onSave, onWatch: onWatch),
                 ],
               );
             },
           ),
         ),
       ),
+    );
+  }
+}
+
+class _OnvifBadge extends StatelessWidget {
+  const _OnvifBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.tertiaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'ONVIF',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.onTertiaryContainer),
+      ),
+    );
+  }
+}
+
+/// Save and Watch for a device with a stream; only the saved state is coloured.
+class _CardActions extends StatelessWidget {
+  const _CardActions({required this.saved, required this.onSave, required this.onWatch});
+
+  final bool saved;
+  final VoidCallback onSave;
+  final VoidCallback onWatch;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: onSave,
+          tooltip: saved ? 'Remove from saved' : 'Save camera',
+          icon: Icon(
+            saved ? Icons.bookmark : Icons.bookmark_outline,
+            color: saved ? colors.primary : colors.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: onWatch,
+          tooltip: 'Watch',
+          icon: Icon(Icons.play_circle_outline, color: colors.primary),
+        ),
+      ],
     );
   }
 }
