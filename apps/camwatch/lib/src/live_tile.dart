@@ -135,65 +135,88 @@ class _LiveTileState extends State<LiveTile> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final address = widget.camera.address;
     return Card(
+      margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       color: Colors.black,
-      child: InkWell(
-        onTap: widget.onTap,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (_player case final player?) player.view,
-            Center(
-              child: switch (_picture) {
-                _Picture.connecting => const CircularProgressIndicator(),
-                _Picture.live => const SizedBox.shrink(),
-                _Picture.locked => const _Hint(Icons.lock_outline, 'Password needed'),
-                _Picture.off => const _Hint(Icons.videocam_off_outlined, 'No stream'),
-              },
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black87],
-                  ),
-                ),
-                child: Row(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // The menu stays outside the merged node, as on the device card.
+          MergeSemantics(
+            child: Semantics(
+              button: true,
+              onTapHint: 'watch',
+              child: InkWell(
+                onTap: widget.onTap,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        widget.camera.address,
-                        softWrap: false,
-                        overflow: TextOverflow.fade,
-                        style: text.titleSmall?.copyWith(
-                          color: Colors.white,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                    if (_player case final player?) player.view,
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: _barHeight),
+                      child: Center(
+                        child: switch (_picture) {
+                          _Picture.connecting => const SizedBox.square(
+                            dimension: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          _Picture.live => const SizedBox.shrink(),
+                          _Picture.locked => const _Hint(
+                            Icons.lock_outline,
+                            'Tap to enter password',
+                          ),
+                          _Picture.off => const _Hint(Icons.videocam_off_outlined, 'No stream'),
+                        },
                       ),
                     ),
-                    PopupMenuButton<String>(
-                      tooltip: 'More',
-                      iconColor: Colors.white,
-                      onSelected: (_) => widget.onRemove(),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'remove', child: Text('Remove')),
-                      ],
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: _barHeight + 24,
+                        padding: const EdgeInsets.fromLTRB(12, 24, 48, 0),
+                        alignment: Alignment.centerLeft,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black87],
+                          ),
+                        ),
+                        child: Text(
+                          address,
+                          softWrap: false,
+                          overflow: TextOverflow.fade,
+                          style: text.titleSmall?.copyWith(
+                            color: Colors.white,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: PopupMenuButton<String>(
+              tooltip: 'Options for $address',
+              iconColor: Colors.white,
+              onSelected: (_) => widget.onRemove(),
+              itemBuilder: (_) => const [PopupMenuItem(value: 'remove', child: Text('Remove'))],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+/// The label bar along the tile's bottom edge; the hint is centred above it.
+const _barHeight = 40.0;
 
 class _Hint extends StatelessWidget {
   const _Hint(this.icon, this.label);
@@ -206,12 +229,9 @@ class _Hint extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white70, size: 32),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Colors.white70),
-        ),
+        Icon(icon, color: Colors.white70, size: 24),
+        const SizedBox(height: 4),
+        Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white70)),
       ],
     );
   }

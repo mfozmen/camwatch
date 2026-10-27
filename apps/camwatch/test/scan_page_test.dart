@@ -233,7 +233,7 @@ void main() {
       await pump(tester, () async => [], saved: store, newPlayer: newPlayer);
       await settle(tester);
       await ready(tester);
-      await tester.tap(find.byTooltip('More'));
+      await tester.tap(find.byTooltip('Options for 192.168.1.6'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();

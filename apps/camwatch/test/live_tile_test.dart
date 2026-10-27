@@ -78,7 +78,7 @@ void main() {
     await settle(tester);
     expect(players.single.opened, isEmpty);
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
-    expect(find.text('Password needed'), findsOneWidget);
+    expect(find.text('Tap to enter password'), findsOneWidget);
   });
 
   testWidgets('no path, an error or a redirect shows the camera as off', (tester) async {
@@ -117,12 +117,40 @@ void main() {
     expect(players.single.disposed, isTrue, reason: 'a tile that gave up holds no socket');
   });
 
-  testWidgets('a tap reaches the owner', (tester) async {
+  testWidgets('a tap reaches the owner, and a screen reader hears what it does', (tester) async {
     var tapped = false;
     await pump(tester, onTap: () => tapped = true);
     await settle(tester);
+    expect(tester.getSemantics(find.text('192.168.1.6')).hintOverrides?.onTapHint, 'watch');
     await tester.tap(find.text('192.168.1.6'));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('the hint clears the address bar on a phone-sized tile', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 175,
+            height: 109,
+            child: LiveTile(
+              camera: camera,
+              live: true,
+              newPlayer: newPlayer,
+              findPaths: (host, port) async => const {},
+              store: FakeStore(),
+              onTap: () {},
+              onRemove: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    final hint = tester.getRect(find.text('No stream'));
+    final address = tester.getRect(find.text('192.168.1.6'));
+    expect(hint.bottom, lessThanOrEqualTo(address.top));
+    expect(tester.getRect(find.byType(Card)).left, 0, reason: 'no margin of its own');
   });
 
   testWidgets('Remove sits in the tile menu', (tester) async {
@@ -130,7 +158,7 @@ void main() {
     await pump(tester, onRemove: () => removed = true);
     await settle(tester);
     players.single.ready();
-    await tester.tap(find.byTooltip('More'));
+    await tester.tap(find.byTooltip('Options for 192.168.1.6'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
