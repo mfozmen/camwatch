@@ -226,6 +226,16 @@ class _PlayerPageState extends State<PlayerPage> {
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
+          // A scrim under the title, so a bright frame never swallows it.
+          flexibleSpace: const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black54, Colors.transparent],
+              ),
+            ),
+          ),
           title: NamedTitle(name: widget.name, address: _host),
         ),
         body: Center(

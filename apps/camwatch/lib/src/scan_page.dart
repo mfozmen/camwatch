@@ -107,12 +107,17 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
   }
 
   void _toggleSaved(Device device) {
-    final camera = SavedCamera(device.address, device.rtspPort!);
-    final kept = _saved.contains(camera)
-        ? _saved.where((c) => c != camera).toList()
-        : [..._saved, camera];
-    _keep(kept);
+    final kept = _savedFor(device);
+    _keep(
+      kept == null
+          ? [..._saved, SavedCamera(device.address, device.rtspPort!)]
+          : _saved.where((c) => c != kept).toList(),
+    );
   }
+
+  /// The saved entry for [device], by address and port; the name is not a key.
+  SavedCamera? _savedFor(Device device) =>
+      _saved.where((c) => c.address == device.address && c.port == device.rtspPort).firstOrNull;
 
   Future<void> _rename(SavedCamera camera) async {
     final name = await askName(context, current: camera.name, address: camera.address);
@@ -122,12 +127,8 @@ class _ScanPageState extends State<ScanPage> with WidgetsBindingObserver {
 
   /// The name the user gave [device], if it is saved under one.
   String? _nameOf(Device device) {
-    for (final camera in _saved) {
-      if (camera.address == device.address && camera.port == device.rtspPort) {
-        return camera.name.trim().isEmpty ? null : camera.name;
-      }
-    }
-    return null;
+    final kept = _savedFor(device);
+    return kept == null || kept.label == device.address ? null : kept.label;
   }
 
   Future<void> _remove(SavedCamera camera) async {

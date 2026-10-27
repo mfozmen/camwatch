@@ -61,6 +61,7 @@ void main() {
     await settle(tester);
     expect(find.text('Garden'), findsOneWidget);
     expect(find.text('192.168.1.6'), findsOneWidget);
+    expect(find.byTooltip('Options for Garden'), findsOneWidget);
     expect(
       tester.getRect(find.text('192.168.1.6')).top,
       greaterThanOrEqualTo(tester.getRect(find.text('Garden')).bottom),
@@ -74,7 +75,7 @@ void main() {
     players.single.ready();
     await tester.tap(find.byTooltip('Options for 192.168.1.6'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rename'));
+    await tester.tap(find.text('Name…'));
     await tester.pumpAndSettle();
     expect(renamed, isTrue);
   });

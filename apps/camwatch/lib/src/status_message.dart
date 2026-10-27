@@ -17,7 +17,15 @@ class NamedTitle extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(name, softWrap: false, overflow: TextOverflow.fade),
-          Text(address, style: style.bodySmall, softWrap: false, overflow: TextOverflow.fade),
+          Text(
+            address,
+            softWrap: false,
+            overflow: TextOverflow.fade,
+            style: style.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
         ],
       );
     }

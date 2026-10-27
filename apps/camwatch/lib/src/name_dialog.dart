@@ -30,17 +30,24 @@ class _NameDialogState extends State<_NameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Name this camera'),
-      content: TextField(
-        controller: _name,
-        autofocus: true,
-        maxLength: 40,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (value) => Navigator.pop(context, value),
-        decoration: InputDecoration(
-          labelText: 'Name',
-          hintText: widget.address,
-          helperText: 'Leave empty to show the address.',
+      title: Text(widget.current.isEmpty ? 'Name this camera' : 'Rename camera'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: TextField(
+          controller: _name,
+          autofocus: true,
+          maxLength: 40,
+          // The counter only once the cap is near; next to the helper it is clutter.
+          buildCounter: (_, {required currentLength, required maxLength, required isFocused}) =>
+              currentLength < 30 ? null : Text('$currentLength/$maxLength'),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) => Navigator.pop(context, value),
+          decoration: InputDecoration(
+            labelText: 'Name',
+            hintText: 'Garden',
+            helperText: 'Leave empty to show ${widget.address}.',
+            helperMaxLines: 2,
+          ),
         ),
       ),
       actions: [
