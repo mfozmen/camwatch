@@ -218,13 +218,52 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Signs every .sha256 the builds produced with the Ed25519 key in
+  # CAMWATCH_UPDATE_SIGNING_KEY (a PEM), the app's proof that an update is
+  # ours. Its own job, with no checkout and no pub: the key is never in a
+  # process that runs the repository's or its dependencies' code.
+  sign:
+    name: Sign the digests
+    needs: [release, app-windows, app-android]
+    if: ${{ !cancelled() && needs.release.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: app-*
+          path: dist
+          merge-multiple: true
+      - name: Sign
+        env:
+          SIGNING_KEY: ${{ secrets.CAMWATCH_UPDATE_SIGNING_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then echo "::error::CAMWATCH_UPDATE_SIGNING_KEY is not set"; exit 1; fi
+          printf '%s\n' "$SIGNING_KEY" > "$RUNNER_TEMP/signing.pem"
+          shopt -s nullglob
+          for digest in dist/*.sha256; do
+            openssl pkeyutl -sign -inkey "$RUNNER_TEMP/signing.pem" -rawin -in "$digest" | base64 -w0 > "$digest.sig"
+            echo >> "$digest.sig"
+            echo "signed $digest"
+          done
+          rm -f "$RUNNER_TEMP/signing.pem"
+          ls dist/*.sig
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: signatures
+          path: dist/*.sig
+          if-no-files-found: error
+          retention-days: 1
+
   # The only job besides `release` that writes: no checkout, no build, nothing of
   # the repository runs here. It attaches what the builds uploaded, and runs
   # even when one platform failed, so the files that built are there; it
   # publishes the release only when all did.
   attach:
     name: Attach to the release
-    needs: [release, app-windows, app-android]
+    needs: [release, app-windows, app-android, sign]
     if: ${{ !cancelled() && needs.release.outputs.released == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -233,7 +272,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          pattern: app-*
+          pattern: "{app-*,signatures}"
           path: dist
           merge-multiple: true
       - name: Upload
@@ -244,7 +283,7 @@ jobs:
       # Latest only when no newer release is out: a draft rebuilt after a
       # newer one shipped never takes "latest" from it.
       - name: Publish
-        if: needs.app-windows.result == 'success' && needs.app-android.result == 'success'
+        if: needs.app-windows.result == 'success' && needs.app-android.result == 'success' && needs.sign.result == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release.outputs.tag }}

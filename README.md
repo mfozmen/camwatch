@@ -72,7 +72,9 @@ tap explains that github.com and its download servers are the only places the
 app ever talks to, and asks before sending anything. Once accepted, the app also checks quietly each time it
 starts and shows a banner when a newer version is out. On Windows, **Update**
 downloads the setup, checks its SHA-256 against the one published with the
-release (a transfer check; the setup is not code-signed yet), runs it silently
+release and that digest's Ed25519 signature against the camwatch release key
+built into the app (so a file that did not come from a camwatch release is
+refused, whoever serves it), runs it silently
 and brings the new version up by itself. If camwatch does not come back, start
 it from the Start menu. On Android,
 **Download** opens the APK for your phone's processor in your browser; install

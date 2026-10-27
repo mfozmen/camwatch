@@ -140,6 +140,8 @@ class _UpdateButtonState extends State<UpdateButton> {
       } catch (_) {
         _say('Could not start the install', 'Retry', () => _update(release, installer));
       }
+    } on SignatureMismatch {
+      _say('The update is not signed by camwatch', 'Retry', () => _update(release, installer));
     } on DigestMismatch {
       _say('The download was damaged, try again', 'Retry', () => _update(release, installer));
     } catch (_) {
