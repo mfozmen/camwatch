@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.3.1 (2026-10-27)
+
+### Bug Fixes
+
+- ONVIF badge on its own row, phone cards stack their buttons
+  ([#51](https://github.com/mfozmen/camwatch/pull/51),
+  [`acb7ded`](https://github.com/mfozmen/camwatch/commit/acb7ded4ee763ac15948ec530a1813d9cb9020c4))
+
+- Read the latest release from github.com's redirect, not the API
+  ([#50](https://github.com/mfozmen/camwatch/pull/50),
+  [`21f7148`](https://github.com/mfozmen/camwatch/commit/21f71483e87dcbf00cf4814504e66e044c24105c))
+
+
 ## v0.3.0 (2026-10-27)
 
 ### Bug Fixes
