@@ -54,6 +54,11 @@ through a relay inside the app: a camera that answers with a redirect is cut
 off there, so the stream library never sees the new address, which could be
 outside your network, and never follows it.
 
+The bookmark on a device with a stream saves it. Saved cameras are listed when
+you open the app, before any scan, each with a play button and a remove button
+(**Undo** is offered for a moment). The list is kept on your device only, next
+to the logins; a scan shows the found devices again, with the saved ones marked.
+
 Until camwatch is in the app stores, new versions come from the
 [releases page](https://github.com/mfozmen/camwatch/releases). The **Check for
 updates** button at the top asks github.com for the newest release; the first

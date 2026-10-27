@@ -8,6 +8,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'camera_store.dart';
 import 'consent_store.dart';
 import 'credential_store.dart';
 import 'multicast_lock.dart';
@@ -111,6 +112,22 @@ Future<Release?> checkForUpdate() =>
 
 /// Hands [url] to the system browser, which downloads the release there.
 Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);
+
+/// The saved cameras, one JSON text in the same store as the logins: no
+/// file of its own on disk, nothing more for a backup to see.
+class SecureCameraStore implements CameraStore {
+  const SecureCameraStore();
+
+  static const _storage = FlutterSecureStorage();
+  static const _key = 'cameras';
+
+  @override
+  Future<List<SavedCamera>> read() async => decodeCameras(await _storage.read(key: _key) ?? '');
+
+  @override
+  Future<void> write(List<SavedCamera> cameras) =>
+      _storage.write(key: _key, value: encodeCameras(cameras));
+}
 
 /// An accepted notice, in the same store as the logins.
 class SecureConsentStore implements ConsentStore {
