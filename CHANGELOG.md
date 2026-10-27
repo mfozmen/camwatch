@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-10-27)
+
+### Features
+
+- A signed digest is the proof an update came from camwatch
+  ([#60](https://github.com/mfozmen/camwatch/pull/60),
+  [`f703053`](https://github.com/mfozmen/camwatch/commit/f703053462fbb9a455fa3c07ad686458bd71f654))
+
+- Ask about update checks on the first launch, remember a refusal
+  ([#59](https://github.com/mfozmen/camwatch/pull/59),
+  [`d093259`](https://github.com/mfozmen/camwatch/commit/d093259940417e58f0cf986f4dd7d3858fb61e57))
+
+- Install an update in place on Android ([#63](https://github.com/mfozmen/camwatch/pull/63),
+  [`4304836`](https://github.com/mfozmen/camwatch/commit/4304836a0d0d5979ffcfeedd283d2696205d71d2))
+
+- Install an update in place on Windows and come back
+  ([#57](https://github.com/mfozmen/camwatch/pull/57),
+  [`029fad3`](https://github.com/mfozmen/camwatch/commit/029fad352204b01f034f7558c2081427124cfceb))
+
+- The app's own icon, a lens and a shield in teal
+  ([#56](https://github.com/mfozmen/camwatch/pull/56),
+  [`08e566f`](https://github.com/mfozmen/camwatch/commit/08e566f33e9f2891df56e92fba3591c1e2783939))
+
+
 ## v0.3.1 (2026-10-27)
 
 ### Bug Fixes
