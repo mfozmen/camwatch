@@ -9,6 +9,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'android_installer.dart';
 import 'camera_store.dart';
 import 'consent_store.dart';
 import 'credential_store.dart';
@@ -112,10 +113,13 @@ class MediaKitPlayer implements StreamPlayer {
 Future<Release?> checkForUpdate() =>
     fetchLatestRelease(latestReleasePage, current: appVersion, abi: Abi.current());
 
-/// A release file into a fresh folder of its own under the user's temp,
-/// verified against its digest; the folder goes with a failed download.
+/// A release file into the one update folder under the user's temp (the
+/// app cache on Android, the folder the package installer may read), emptied
+/// first so no earlier attempt lingers; it goes with a failed download.
 Future<File> downloadUpdate(Release release, {void Function(int, int?)? onProgress}) async {
-  final folder = await Directory.systemTemp.createTemp('camwatch-update-');
+  final folder = Directory('${Directory.systemTemp.path}${Platform.pathSeparator}camwatch-update');
+  if (await folder.exists()) await folder.delete(recursive: true);
+  await folder.create();
   try {
     return await downloadVerified(
       release,
@@ -145,8 +149,12 @@ class WindowsInstaller implements Installer {
   }
 }
 
-/// The installer for this platform, or none yet.
-Installer? get platformInstaller => Platform.isWindows ? const WindowsInstaller() : null;
+/// The installer for this platform, or none.
+Installer? get platformInstaller {
+  if (Platform.isWindows) return const WindowsInstaller();
+  if (Platform.isAndroid) return const AndroidInstaller();
+  return null;
+}
 
 /// Hands [url] to the system browser, which downloads the release there.
 Future<void> openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);

@@ -1,10 +1,16 @@
 package io.github.mfozmen.camwatch
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.net.wifi.WifiManager
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private var lock: WifiManager.MulticastLock? = null
@@ -30,6 +36,44 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.github.mfozmen.camwatch/install")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "install" -> {
+                        val apk = File(call.arguments as String)
+                        // Only a file the app put in its own cache, named as a release file.
+                        if (!apk.canonicalPath.startsWith(cacheDir.canonicalPath) || !apk.name.endsWith(".apk")) {
+                            result.error("path", "not an update file", null)
+                        } else {
+                            result.success(install(apk))
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /// Hands a downloaded APK to the system package installer, and to it
+    /// alone. "blocked" when the user has not yet allowed camwatch to install
+    /// apps: the settings page for that opens instead, and the Dart side says
+    /// what to do.
+    @Suppress("DEPRECATION") // ACTION_INSTALL_PACKAGE still resolves only to the installer; sessions are the bigger change.
+    private fun install(apk: File): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            return "blocked"
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.update", apk)
+        startActivity(
+            Intent(Intent.ACTION_INSTALL_PACKAGE)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        )
+        return "started"
     }
 
     override fun onDestroy() {

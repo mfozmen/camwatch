@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one folder a downloaded update lands in, shared with the package
+     installer alone and only for the one file handed to it. -->
+<paths>
+    <cache-path name="updates" path="camwatch-update/"/>
+</paths>

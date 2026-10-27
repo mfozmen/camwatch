@@ -77,9 +77,11 @@ release and that digest's Ed25519 signature against the camwatch release key
 built into the app (so a file that did not come from a camwatch release is
 refused, whoever serves it), runs it silently
 and brings the new version up by itself. If camwatch does not come back, start
-it from the Start menu. On Android,
-**Download** opens the APK for your phone's processor in your browser; install
-it over the old one. Nothing about you or your cameras
+it from the Start menu. On Android, **Update** downloads and checks the APK for
+your phone's processor the same way and hands it to the system installer, which
+asks you to confirm and then offers to open the app. The first time, Android's
+settings page for allowing camwatch to install apps opens instead: allow it,
+come back and tap **Update** again. Nothing about you or your cameras
 is sent; **Not now** keeps the app fully offline, and **Stop checking** on a
 later check turns it off again.
 
