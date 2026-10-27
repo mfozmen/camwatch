@@ -90,6 +90,7 @@ pinned in the root `pubspec.yaml`). The repo is a Dart pub workspace:
 |---|---|
 | `packages/camwatch_core` | pure Dart: subnet math, discovery, RTSP/ONVIF parsing, security rules |
 | `apps/camwatch` | the Flutter app: Android and Windows |
+| `tool` | the coverage gate, the comment check, `make_icon.py` (regenerates the app icon) |
 
 ```bash
 flutter pub get
